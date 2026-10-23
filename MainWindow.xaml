@@ -33,9 +33,9 @@
     <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}" Margin="6,0,0,12">
       <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="100"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <DockPanel Height="25" Margin="0"><Button x:Name="AnswerSendButton" Content="Send" DockPanel.Dock="Right" Click="AnswerSend_Click" Margin="0,0,8,0"/><Button Content="Format" DockPanel.Dock="Right" Click="AnswerFormat_Click" Margin="0,0,8,0"/><Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Answer" Margin="0,0,8,0"/><TextBlock Text="04   ANSWER" FontSize="13" FontWeight="Bold" Foreground="#F4C27A" VerticalAlignment="Center"/></DockPanel>
-        <TextBox Grid.Row="1" x:Name="TranslationInputText" Height="100" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Answer input" Margin="0,0,0,8"/>
+        <TextBox Grid.Row="1" x:Name="TranslationInputText" Height="100" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Answer input" Margin="0,0,0,8" Background="#1E1E1E" Foreground="#D4D4D4" BorderBrush="#3C3C3C" BorderThickness="1" FontFamily="Consolas" FontSize="14" Padding="10,8" CaretBrush="#569CD6" SelectionBrush="#264F78" SelectionTextBrush="#FFFFFF"/>
         <Border Grid.Row="2" Height="2" Background="#2A3850" Margin="0,0,0,8"/>
-        <TextBox Grid.Row="3" x:Name="AnswerText" AutomationProperties.Name="AI answer" Margin="0" IsReadOnly="True"/>
+        <TextBox Grid.Row="3" x:Name="AnswerText" AutomationProperties.Name="AI answer" Margin="0" IsReadOnly="True" Background="#1E1E1E" Foreground="#D4D4D4" BorderBrush="#3C3C3C" BorderThickness="1" FontFamily="Consolas" FontSize="14" Padding="10,8" CaretBrush="#569CD6" SelectionBrush="#264F78" SelectionTextBrush="#FFFFFF"/>
       </Grid>
     </Border>
     <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource Panel}" Margin="0,0,0,0" Visibility="Collapsed">

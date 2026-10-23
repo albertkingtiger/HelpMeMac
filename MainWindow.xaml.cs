@@ -398,7 +398,13 @@ public partial class MainWindow : Window
         _ = SendAnswerAsync();
     }
 
-    private void AnswerFormat_Click(object sender, RoutedEventArgs e) { answerOutputVersion++; AnswerText.Clear(); }
+    private void AnswerFormat_Click(object sender, RoutedEventArgs e)
+    {
+        answerOutputVersion++;
+        answerCancellation?.Cancel();
+        TranslationInputText.Clear();
+        AnswerText.Clear();
+    }
     private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
     private string GetAnswerPrompt()
     {
