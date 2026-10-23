@@ -156,26 +156,16 @@ public partial class MainWindow : Window
     }
     private void Append(TextBox box, string text)
     {
-        var follow = IsNearBottom(box) || (ReferenceEquals(box, PcText) && box.IsKeyboardFocusWithin);
-        var preserveCaret = box.IsKeyboardFocusWithin && box.CaretIndex < box.Text.Length;
-        var caret = box.CaretIndex;
-        var selectionStart = box.SelectionStart;
-        var selectionLength = box.SelectionLength;
         var chunk = Regex.Replace(text ?? "", @"\s+", " ").Trim();
         if (chunk.Length == 0) return;
-        // Whisper may close a short audio fragment with a period even when the
-        // next fragment is a continuation. Keep that continuation on the same
-        // natural sentence instead of displaying "apply. more".
-        if (box.Text.Length > 0 && char.IsLower(chunk[0]) && box.Text[^1] is '.' or '!' or '?')
-            box.Text = box.Text[..^1];
-        var separator = box.Text.Length > 0 && !char.IsWhiteSpace(box.Text[^1]) && !char.IsPunctuation(chunk[0]) ? " " : "";
-        box.AppendText(separator + chunk);
-        if (preserveCaret)
+        UpdateTextPreservingView(box, () =>
         {
-            box.Select(Math.Min(selectionStart, box.Text.Length), Math.Min(selectionLength, Math.Max(0, box.Text.Length - selectionStart)));
-            box.CaretIndex = Math.Min(caret, box.Text.Length);
-        }
-        if (follow) box.ScrollToEnd();
+            // A lowercase continuation should stay on the same natural sentence.
+            if (box.Text.Length > 0 && char.IsLower(chunk[0]) && box.Text[^1] is '.' or '!' or '?')
+                box.Text = box.Text[..^1];
+            var separator = box.Text.Length > 0 && !char.IsWhiteSpace(box.Text[^1]) && !char.IsPunctuation(chunk[0]) ? " " : "";
+            box.AppendText(separator + chunk);
+        });
     }
 
     private void QueueCaption(string text, bool pcAudio)
@@ -206,12 +196,10 @@ public partial class MainWindow : Window
     }
 
     private void SetLiveCaption(string text)
+        => UpdateTextPreservingView(PcText, () => ReplaceLiveCaption(text));
+
+    private void ReplaceLiveCaption(string text)
     {
-        var follow = IsNearBottom(PcText) || PcText.IsKeyboardFocusWithin;
-        var preserveCaret = PcText.IsKeyboardFocusWithin && PcText.CaretIndex < PcText.Text.Length;
-        var caret = PcText.CaretIndex;
-        var selectionStart = PcText.SelectionStart;
-        var selectionLength = PcText.SelectionLength;
         if (!pcLiveCaptionActive)
         {
             if (PcText.Text.Length > 0 && !char.IsWhiteSpace(PcText.Text[^1])) PcText.AppendText(" ");
@@ -220,27 +208,44 @@ public partial class MainWindow : Window
         }
         var start = Math.Clamp(pcLiveCaptionStart, 0, PcText.Text.Length);
         PcText.Text = PcText.Text[..start] + text.Trim();
-        if (preserveCaret)
-        {
-            PcText.Select(Math.Min(selectionStart, PcText.Text.Length), Math.Min(selectionLength, Math.Max(0, PcText.Text.Length - selectionStart)));
-            PcText.CaretIndex = Math.Min(caret, PcText.Text.Length);
-        }
-        else
-        {
-            PcText.CaretIndex = PcText.Text.Length;
-        }
-        if (follow) PcText.ScrollToEnd();
     }
 
     private void CommitLiveCaption(string text)
     {
-        SetLiveCaption(text);
-        var trimmed = text.TrimEnd();
-        if (trimmed.Length > 0 && trimmed[^1] is '.' or '!' or '?' or ':' or ';')
-            PcText.AppendText(Environment.NewLine);
-        else if (PcText.Text.Length > 0 && !char.IsWhiteSpace(PcText.Text[^1]))
-            PcText.AppendText(" ");
-        pcLiveCaptionActive = false;
+        UpdateTextPreservingView(PcText, () =>
+        {
+            ReplaceLiveCaption(text);
+            var trimmed = text.TrimEnd();
+            if (trimmed.Length > 0 && trimmed[^1] is '.' or '!' or '?' or ':' or ';')
+                PcText.AppendText(Environment.NewLine);
+            else if (PcText.Text.Length > 0 && !char.IsWhiteSpace(PcText.Text[^1]))
+                PcText.AppendText(" ");
+            pcLiveCaptionActive = false;
+        });
+    }
+
+    private static void UpdateTextPreservingView(TextBox box, Action update)
+    {
+        var follow = IsNearBottom(box);
+        var verticalOffset = box.VerticalOffset;
+        var horizontalOffset = box.HorizontalOffset;
+        var selectionStart = box.SelectionStart;
+        var selectionLength = box.SelectionLength;
+        using (box.DeclareChangeBlock())
+        {
+            update();
+            // Resolve text layout first so restoring the selection does not
+            // queue a caret scroll that would override the viewport below.
+            box.UpdateLayout();
+            var start = Math.Min(selectionStart, box.Text.Length);
+            box.Select(start, Math.Min(selectionLength, box.Text.Length - start));
+        }
+        // Lay out the new text and caret before restoring the viewport. Focus
+        // must never override a user's decision to scroll away from the bottom.
+        box.UpdateLayout();
+        if (follow) box.ScrollToEnd();
+        else box.ScrollToVerticalOffset(verticalOffset);
+        box.ScrollToHorizontalOffset(horizontalOffset);
     }
 
     private static bool IsNearBottom(TextBox box)
@@ -288,9 +293,7 @@ public partial class MainWindow : Window
             {
                 translatedSource = source;
                 translatedTarget = result;
-                var follow = IsNearBottom(TranslationText);
-                TranslationText.Text = translatedTarget;
-                if (follow) TranslationText.ScrollToEnd();
+                UpdateTextPreservingView(TranslationText, () => TranslationText.Text = translatedTarget);
             }
         }
         catch (OperationCanceledException) { }
@@ -434,9 +437,7 @@ public partial class MainWindow : Window
     private void DisplayAnswer(string text, int outputVersion) => UI(() =>
     {
         if (closing || outputVersion != answerOutputVersion) return;
-        var follow = IsNearBottom(AnswerText);
-        AnswerText.Text = text;
-        if (follow) AnswerText.ScrollToEnd();
+        UpdateTextPreservingView(AnswerText, () => AnswerText.Text = text);
     });
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
