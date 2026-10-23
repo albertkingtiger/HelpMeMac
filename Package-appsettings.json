@@ -5,5 +5,5 @@
   "PythonPath": "python/python.exe",
   "SpeechThreshold": 0.008,
   "MaxSegmentSeconds": 12,
-  "SilenceSeconds": 0.7
+  "SilenceSeconds": 6
 }
