@@ -11,7 +11,7 @@ public sealed class AppSettings
     public string PythonPath { get; set; } = ".venv/Scripts/python.exe";
     public double SpeechThreshold { get; set; } = 0.008;
     public double MaxSegmentSeconds { get; set; } = 12;
-    public double SilenceSeconds { get; set; } = 6;
+    public double SilenceSeconds { get; set; } = 0.7;
     public int ChromeDebugPort { get; set; } = 9111;
     public string AiProvider { get; set; } = "ChatGPT";
     public string AiProject { get; set; } = "";
@@ -92,7 +92,7 @@ public sealed class AppSettings
     }
     private static void Validate(AppSettings result)
     {
-        if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 6 or > 12 || result.SilenceSeconds is < 6 or > 12 || result.ChromeDebugPort is < 1024 or > 65535)
+        if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 6 or > 12 || result.SilenceSeconds is < 0.1 or > 12 || result.ChromeDebugPort is < 1024 or > 65535)
             throw new InvalidDataException("Audio thresholds in appsettings.json are out of range.");
     }
     private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession, double WindowWidth = 1060, double WindowHeight = 860);
