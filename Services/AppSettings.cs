@@ -46,7 +46,7 @@ public sealed class AppSettings
                     result.AiProject = saved.AiProject ?? "";
                     result.AiSession = saved.AiSession ?? "";
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
-                    if (saved.WindowHeight is >= 250 and <= 5000) result.WindowHeight = saved.WindowHeight;
+                    if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                 }
             }
             catch (JsonException) { }
@@ -74,7 +74,7 @@ public sealed class AppSettings
     public void SaveWindowSize(double width, double height)
     {
         WindowWidth = Math.Clamp(width, 700, 5000);
-        WindowHeight = Math.Clamp(height, 250, 5000);
+        WindowHeight = Math.Clamp(height, 300, 5000);
         SavePreferences();
     }
     private void SavePreferences()
