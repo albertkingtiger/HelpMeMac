@@ -21,5 +21,9 @@ public partial class SettingsWindow : Window
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
     public string AiProject => ProjectCombo.Text.Trim();
     public string AiSession => SessionCombo.Text.Trim();
+    private void Title_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == System.Windows.Input.MouseButtonState.Pressed) DragMove();
+    }
     private void Save_Click(object sender, RoutedEventArgs e) => DialogResult = true;
 }

@@ -16,13 +16,21 @@ public partial class App : Application
         base.OnStartup(e);
         if (!launchMainWindow) return;
         var window = new MainWindow();
-        if (e.Args.Length == 2 && e.Args[0] is "--render-preview" or "--render-settings-preview")
+        if (e.Args.Length is 2 or 4 && e.Args[0] is "--render-preview" or "--render-settings-preview")
         {
             // Offscreen rendering for layout verification; never opens an audio device.
             var settingsPreview = e.Args[0] == "--render-settings-preview";
             Window preview = settingsPreview ? new SettingsWindow(Services.CaptionMethod.Whisper) : window;
             var width = settingsPreview ? 490 : 1004;
             var height = settingsPreview ? 490 : 748;
+            if (e.Args.Length == 4)
+            {
+                // Optional dimensions allow checking compact layouts without
+                // changing the user's saved window size or starting capture.
+                width = int.Parse(e.Args[2]);
+                height = int.Parse(e.Args[3]);
+                if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(e.Args));
+            }
             var content = (Grid)preview.Content;
             content.Background = preview.Background;
             content.Measure(new Size(width, height));
