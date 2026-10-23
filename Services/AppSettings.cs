@@ -16,6 +16,8 @@ public sealed class AppSettings
     public string AiProvider { get; set; } = "ChatGPT";
     public string AiProject { get; set; } = "";
     public string AiSession { get; set; } = "";
+    public double WindowWidth { get; set; } = 1060;
+    public double WindowHeight { get; set; } = 860;
     public static string Root { get; private set; } = AppContext.BaseDirectory;
     private static string? projectRoot;
     private static string PreferencesPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HelpMe", "settings.json");
@@ -43,6 +45,8 @@ public sealed class AppSettings
                     result.AiProvider = saved.AiProvider is "ChatGPT" or "Claude" ? saved.AiProvider : result.AiProvider;
                     result.AiProject = saved.AiProject ?? "";
                     result.AiSession = saved.AiSession ?? "";
+                    if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
+                    if (saved.WindowHeight is >= 250 and <= 5000) result.WindowHeight = saved.WindowHeight;
                 }
             }
             catch (JsonException) { }
@@ -67,9 +71,15 @@ public sealed class AppSettings
         if (provider is not ("ChatGPT" or "Claude")) throw new ArgumentOutOfRangeException(nameof(provider));
         AiProvider = provider; AiProject = project ?? ""; AiSession = session ?? ""; SavePreferences();
     }
+    public void SaveWindowSize(double width, double height)
+    {
+        WindowWidth = Math.Clamp(width, 700, 5000);
+        WindowHeight = Math.Clamp(height, 250, 5000);
+        SavePreferences();
+    }
     private void SavePreferences()
     {
-        var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession), new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight), new JsonSerializerOptions { WriteIndented = true });
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(PreferencesPath)!);
@@ -85,7 +95,7 @@ public sealed class AppSettings
         if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 0.75 or > 15 || result.SilenceSeconds is < 0.1 or > 3 || result.ChromeDebugPort is < 1024 or > 65535)
             throw new InvalidDataException("Audio thresholds in appsettings.json are out of range.");
     }
-    private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession);
+    private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession, double WindowWidth = 1060, double WindowHeight = 860);
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);

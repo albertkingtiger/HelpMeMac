@@ -71,6 +71,9 @@ public partial class MainWindow : Window
         try
         {
             settings = AppSettings.Load();
+            Width = settings.WindowWidth;
+            Height = settings.WindowHeight;
+            SizeChanged += (_, _) => { if (initialized) settings.SaveWindowSize(Width, Height); };
             engine = new SpeechEngine(settings);
             initialized = true;
             Loaded += async (_, _) => { if (chrome is null && !closing) await StartChromeAsync(); };
