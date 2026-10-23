@@ -76,7 +76,24 @@ public partial class MainWindow : Window
             SizeChanged += (_, _) => { if (initialized) settings.SaveWindowSize(Width, Height); };
             engine = new SpeechEngine(settings);
             initialized = true;
-            Loaded += async (_, _) => { if (chrome is null && !closing) await StartChromeAsync(); };
+            Loaded += async (_, _) =>
+            {
+                if (chrome is null && !closing) await StartChromeAsync();
+                if (closing || PcToggle.IsChecked == true) return;
+                PcToggle.IsChecked = true;
+                try
+                {
+                    await ChangeAsync(async () =>
+                    {
+                        translationUsesAudio = false;
+                        await UpdatePcAsync();
+                    });
+                }
+                catch
+                {
+                    PcToggle.IsChecked = false;
+                }
+            };
         }
         catch (Exception e)
         {
