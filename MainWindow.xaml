@@ -43,7 +43,7 @@
           <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Translation" Margin="0,0,8,0"/>
           <TextBlock Text="02   Translation" FontSize="13" FontWeight="Bold" Foreground="#79DDC2" VerticalAlignment="Center"/>
         </DockPanel>
-        <TextBox Grid.Row="1" Height="60" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Translation input" Margin="0,0,0,8"/>
+        <TextBox Grid.Row="1" x:Name="TranslationInputText" Height="60" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Translation input" Margin="0,0,0,8"/>
         <TextBox Grid.Row="2" x:Name="TranslationText" AutomationProperties.Name="Korean translation" Margin="0"/>
       </Grid>
     </Border>

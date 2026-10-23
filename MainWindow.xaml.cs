@@ -393,6 +393,7 @@ public partial class MainWindow : Window
         string prompt;
         try { prompt = GetAnswerPrompt(); }
         catch (InvalidOperationException error) { ShowError(error.Message); return; }
+        TranslationInputText.Text = prompt;
         using var cancellation = new CancellationTokenSource();
         answerCancellation = cancellation;
         AnswerSendButton.IsEnabled = false;
