@@ -106,11 +106,12 @@ public sealed class ChromeDebugSession : IAsyncDisposable
         try
         {
             if (running.HasExited) return;
-            running.CloseMainWindow();
-            try { await running.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
-            catch (TimeoutException)
+            try { running.CloseMainWindow(); } catch (InvalidOperationException) { }
+            try { await running.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch (TimeoutException) { }
+            if (!running.HasExited)
             {
-                if (!running.HasExited) running.Kill(entireProcessTree: true);
+                running.Kill(entireProcessTree: true);
                 await running.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
             }
         }

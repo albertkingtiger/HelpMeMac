@@ -27,7 +27,7 @@
           <Button x:Name="SaveButton" Content="Save" MinWidth="42" DockPanel.Dock="Right" Click="Save_Click" Margin="0,0,8,0" ToolTip="Save caption text as a UTF-8 text file"/>
           <TextBlock Text="Method: Whisper (offline)" FontSize="9" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
         </DockPanel>
-        <TextBox Grid.Row="1" x:Name="PcText" IsReadOnly="False" CaretBrush="#8DAEFF" SelectionBrush="#315B92" SelectionTextBrush="#FFFFFF" TextChanged="PcText_TextChanged" PreviewMouseLeftButtonDown="PcText_PreviewMouseLeftButtonDown" ToolTip="Click a word to save the AI send position. Capture continues while you edit or send." AutomationProperties.Name="Editable PC caption and translation input" Margin="0"/>
+        <TextBox Grid.Row="1" x:Name="PcText" IsReadOnly="True" CaretBrush="#8DAEFF" SelectionBrush="#315B92" SelectionTextBrush="#FFFFFF" TextChanged="PcText_TextChanged" PreviewMouseLeftButtonDown="PcText_PreviewMouseLeftButtonDown" ToolTip="Click a word to save the AI send position." AutomationProperties.Name="PC audio captions" Margin="0"/>
       </Grid>
     </Border>
     <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}" Margin="6,0,0,12">
