@@ -155,7 +155,7 @@ public partial class MainWindow : Window
             box.Select(Math.Min(selectionStart, box.Text.Length), Math.Min(selectionLength, Math.Max(0, box.Text.Length - selectionStart)));
             box.CaretIndex = Math.Min(caret, box.Text.Length);
         }
-        else if (follow) box.ScrollToEnd();
+        if (follow) box.ScrollToEnd();
     }
 
     private void QueueCaption(string text, bool pcAudio)
@@ -208,8 +208,8 @@ public partial class MainWindow : Window
         else
         {
             PcText.CaretIndex = PcText.Text.Length;
-            if (follow) PcText.ScrollToEnd();
         }
+        if (follow) PcText.ScrollToEnd();
     }
 
     private void CommitLiveCaption(string text)
