@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     private bool hasSavedCaptionLocation;
     private CancellationTokenSource? answerCancellation;
     private int answerOutputVersion;
+    private KeyGesture sendShortcut = new(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
 
     public MainWindow()
     {
@@ -77,6 +78,7 @@ public partial class MainWindow : Window
             Width = settings.WindowWidth;
             Height = settings.WindowHeight;
             ApplyEditorAppearance();
+            ApplySendShortcut();
             SizeChanged += (_, _) => { if (initialized) settings.SaveWindowSize(Width, Height); };
             engine = new SpeechEngine(settings);
             initialized = true;
@@ -459,9 +461,27 @@ public partial class MainWindow : Window
     }
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Z || Keyboard.Modifiers != (ModifierKeys.Control | ModifierKeys.Shift)) return;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key != sendShortcut.Key || Keyboard.Modifiers != sendShortcut.Modifiers) return;
         e.Handled = true;
         _ = SendAnswerAsync();
+    }
+
+    private void ApplySendShortcut()
+    {
+        try
+        {
+            sendShortcut = new KeyGestureConverter().ConvertFromInvariantString(settings.SendShortcut) as KeyGesture
+                ?? new KeyGesture(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            sendShortcut = new KeyGesture(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
+            settings.SendShortcut = "Ctrl+Shift+Z";
+        }
+        var label = new KeyGestureConverter().ConvertToInvariantString(sendShortcut) ?? "Ctrl+Shift+Z";
+        SendShortcutHint.Text = $"{label}  Send";
+        AnswerSendButton.ToolTip = $"Send captions ({label})";
     }
 
     private void AnswerFormat_Click(object sender, RoutedEventArgs e)
@@ -587,18 +607,20 @@ public partial class MainWindow : Window
             settings.PcFontSize, settings.PcTextColor, settings.PcCaretColor,
             settings.TranslationFontSize, settings.TranslationTextColor,
             settings.AnswerInputFontSize, settings.AnswerInputTextColor,
-            settings.AnswerFontSize, settings.AnswerTextColor) { Owner = this };
+            settings.AnswerFontSize, settings.AnswerTextColor, settings.SendShortcut) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await ChangeAsync(async () =>
         {
             var previousPort = settings.ChromeDebugPort;
             settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
+            settings.SaveSendShortcut(dialog.SendShortcut);
             settings.SaveEditorAppearance(dialog.PcFontSize, dialog.PcTextColor, dialog.PcCaretColor,
                 dialog.TranslationFontSize, dialog.TranslationTextColor,
                 dialog.AnswerInputFontSize, dialog.AnswerInputTextColor,
                 dialog.AnswerFontSize, dialog.AnswerTextColor);
             ApplyEditorAppearance();
+            ApplySendShortcut();
             if (previousPort != dialog.ChromeDebugPort)
             {
                 answerCancellation?.Cancel();

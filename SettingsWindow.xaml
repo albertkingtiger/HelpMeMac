@@ -18,15 +18,19 @@
 
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <TextBlock Text="Chrome debug port" VerticalAlignment="Center" Margin="0,0,0,10"/>
           <TextBox Grid.Column="1" x:Name="ChromePortText" Style="{StaticResource SettingsInput}" Width="100" HorizontalAlignment="Left" Margin="0,0,0,10"/>
           <TextBlock Grid.Row="1" Text="AI provider" VerticalAlignment="Center" Margin="0,0,0,10"/>
           <ComboBox Grid.Row="1" Grid.Column="1" x:Name="ProviderCombo" Margin="0,0,0,10"/>
           <TextBlock Grid.Row="2" Text="Project" VerticalAlignment="Center" Margin="0,0,0,10"/>
           <TextBox Grid.Row="2" Grid.Column="1" x:Name="ProjectCombo" Style="{StaticResource SettingsInput}" Margin="0,0,0,10" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
-          <TextBlock Grid.Row="3" Text="Session" VerticalAlignment="Center"/>
-          <TextBox Grid.Row="3" Grid.Column="1" x:Name="SessionCombo" Style="{StaticResource SettingsInput}" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
+          <TextBlock Grid.Row="3" Text="Session" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="SessionCombo" Style="{StaticResource SettingsInput}" Margin="0,0,0,10" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
+          <TextBlock Grid.Row="4" Text="Send shortcut" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="4" Grid.Column="1" x:Name="SendShortcutText" Style="{StaticResource SettingsInput}"
+                   IsReadOnly="True" IsReadOnlyCaretVisible="False" PreviewKeyDown="SendShortcutText_PreviewKeyDown"
+                   ToolTip="Click here, then press the new shortcut"/>
         </Grid>
         <TextBlock Text="Send uses the conversation open in the selected provider's Chrome tab." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,14,0,20"/>
 

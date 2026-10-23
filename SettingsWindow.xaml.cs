@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Globalization;
 using HelpMe.Services;
 using Button = System.Windows.Controls.Button;
@@ -15,7 +16,8 @@ public partial class SettingsWindow : Window
         double pcFontSize = 14, string pcTextColor = "#CCCCCC", string pcCaretColor = "#AEAFAD",
         double translationFontSize = 14, string translationTextColor = "#CCCCCC",
         double answerInputFontSize = 14, string answerInputTextColor = "#CCCCCC",
-        double answerFontSize = 14, string answerTextColor = "#CCCCCC")
+        double answerFontSize = 14, string answerTextColor = "#CCCCCC",
+        string sendShortcut = "Ctrl+Shift+Z")
     {
         InitializeComponent();
         WhisperOption.IsChecked = true;
@@ -24,6 +26,7 @@ public partial class SettingsWindow : Window
         ProviderCombo.SelectedItem = provider is "Claude" ? "Claude" : "ChatGPT";
         ProjectCombo.Text = project;
         SessionCombo.Text = session;
+        SendShortcutText.Text = TryNormalizeShortcut(sendShortcut, out var normalizedShortcut) ? normalizedShortcut : "Ctrl+Shift+Z";
         PcFontSizeText.Text = pcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         TranslationFontSizeText.Text = translationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         AnswerInputFontSizeText.Text = answerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
@@ -39,6 +42,7 @@ public partial class SettingsWindow : Window
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
     public string AiProject => ProjectCombo.Text.Trim();
     public string AiSession => SessionCombo.Text.Trim();
+    public string SendShortcut => SendShortcutText.Text;
     public double PcFontSize => ReadFontSize(PcFontSizeText);
     public string PcTextColor => PcTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public string PcCaretColor => PcCaretColorButton.Content?.ToString() ?? "#AEAFAD";
@@ -74,6 +78,42 @@ public partial class SettingsWindow : Window
         if (picker.ShowDialog() == Forms.DialogResult.OK)
             SetColorButton(button, $"#{picker.Color.R:X2}{picker.Color.G:X2}{picker.Color.B:X2}");
     }
+    private void SendShortcutText_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or
+            Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
+        {
+            e.Handled = true;
+            return;
+        }
+        try
+        {
+            var gesture = new KeyGesture(key, Keyboard.Modifiers);
+            SendShortcutText.Text = new KeyGestureConverter().ConvertToInvariantString(gesture) ?? "Ctrl+Shift+Z";
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            System.Windows.MessageBox.Show(this, "Use Ctrl, Alt, or a function key in the shortcut.", "Shortcut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        e.Handled = true;
+    }
+    private static bool TryNormalizeShortcut(string value, out string normalized)
+    {
+        try
+        {
+            var gesture = new KeyGestureConverter().ConvertFromInvariantString(value) as KeyGesture;
+            if (gesture is null) throw new NotSupportedException();
+            normalized = new KeyGestureConverter().ConvertToInvariantString(gesture) ?? value;
+            return true;
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            normalized = "";
+            return false;
+        }
+    }
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (new[] { PcFontSize, TranslationFontSize, AnswerInputFontSize, AnswerFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
@@ -82,6 +122,13 @@ public partial class SettingsWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        if (!TryNormalizeShortcut(SendShortcutText.Text, out var shortcut))
+        {
+            System.Windows.MessageBox.Show(this, "Click the shortcut field and press a valid key combination.", "Settings",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        SendShortcutText.Text = shortcut;
         DialogResult = true;
     }
 }

@@ -47,8 +47,12 @@ try
         appearanceSettings.AnswerInputTextColor != "#DDEEFF" || appearanceSettings.AnswerFontSize != 19 ||
         appearanceSettings.AnswerTextColor != "#ABCDEF")
         throw new Exception("Editor appearance settings did not round-trip through JSON preferences.");
+    settings.SaveSendShortcut("Ctrl+Alt+K");
+    if (AppSettings.Load(preferencePath).SendShortcut != "Ctrl+Alt+K")
+        throw new Exception("Send shortcut did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: AI provider, destination and port preference persistence");
     Console.WriteLine("PASS: per-editor font and color preference persistence");
+    Console.WriteLine("PASS: configurable send shortcut preference persistence");
     Console.WriteLine("PASS: cross-platform JSON preferences and Whisper-only captions");
 }
 finally

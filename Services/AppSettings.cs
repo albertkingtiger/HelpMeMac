@@ -17,6 +17,7 @@ public sealed class AppSettings
     public string AiProvider { get; set; } = "ChatGPT";
     public string AiProject { get; set; } = "";
     public string AiSession { get; set; } = "";
+    public string SendShortcut { get; set; } = "Ctrl+Shift+Z";
     public double WindowWidth { get; set; } = 1060;
     public double WindowHeight { get; set; } = 860;
     public double PcFontSize { get; set; } = 14;
@@ -59,6 +60,7 @@ public sealed class AppSettings
                     result.AiProvider = saved.AiProvider is "ChatGPT" or "Claude" ? saved.AiProvider : result.AiProvider;
                     result.AiProject = saved.AiProject ?? "";
                     result.AiSession = saved.AiSession ?? "";
+                    if (!string.IsNullOrWhiteSpace(saved.SendShortcut)) result.SendShortcut = saved.SendShortcut;
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
@@ -94,6 +96,12 @@ public sealed class AppSettings
         if (provider is not ("ChatGPT" or "Claude")) throw new ArgumentOutOfRangeException(nameof(provider));
         AiProvider = provider; AiProject = project ?? ""; AiSession = session ?? ""; SavePreferences();
     }
+    public void SaveSendShortcut(string shortcut)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) throw new ArgumentException("Shortcut cannot be empty.", nameof(shortcut));
+        SendShortcut = shortcut.Trim();
+        SavePreferences();
+    }
     public void SaveWindowSize(double width, double height)
     {
         WindowWidth = Math.Clamp(width, 700, 5000);
@@ -123,7 +131,7 @@ public sealed class AppSettings
     {
         var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
-            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor),
+            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -147,7 +155,8 @@ public sealed class AppSettings
         double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
         double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
         double AnswerInputFontSize = 14, string AnswerInputTextColor = "#CCCCCC",
-        double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC");
+        double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC",
+        string SendShortcut = "Ctrl+Shift+Z");
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);
