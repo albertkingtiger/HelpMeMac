@@ -10,7 +10,7 @@ public sealed class AppSettings
     public string TranslationModelPath { get; set; } = "models/nllb-200-distilled-600M-int8";
     public string PythonPath { get; set; } = ".venv/Scripts/python.exe";
     public double SpeechThreshold { get; set; } = 0.008;
-    public double MaxSegmentSeconds { get; set; } = 12;
+    public double MaxSegmentSeconds { get; set; } = 6;
     public double SilenceSeconds { get; set; } = 0.7;
     public int ChromeDebugPort { get; set; } = 9111;
     public string AiProvider { get; set; } = "ChatGPT";
