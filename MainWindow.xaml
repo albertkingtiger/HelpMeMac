@@ -1,10 +1,15 @@
 <Window x:Class="HelpMe.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Help Me!" Width="1060" Height="860"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Help Me!" Width="1060" Height="860"
         Icon="{StaticResource AppIcon}" MinWidth="700" MinHeight="300"
         Background="{StaticResource WindowBackground}" Foreground="{StaticResource Foreground}" FontFamily="Segoe UI" FontSize="12"
         WindowStyle="None" MouseLeftButtonDown="Window_MouseLeftButtonDown" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+  </shell:WindowChrome.WindowChrome>
   <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
       <RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="0"/>
       <RowDefinition Height="26"/><RowDefinition Height="Auto"/>
@@ -26,7 +31,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="8,8,4,0">
+    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="8,8,0,0">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <Border Style="{StaticResource SectionHeader}">
@@ -52,7 +57,7 @@
                   Background="{StaticResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                   ShowsPreview="False" ToolTip="Drag to resize the caption and answer panels"/>
 
-    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="4,8,8,0">
+    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="0,8,8,0">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="100"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <Border Style="{StaticResource SectionHeader}">
