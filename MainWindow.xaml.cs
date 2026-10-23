@@ -406,6 +406,14 @@ public partial class MainWindow : Window
         AnswerText.Clear();
     }
     private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
+    private void MoveCaptionCaretToEnd()
+    {
+        savedCaptionLocation = PcText.Text.Length;
+        hasSavedCaptionLocation = true;
+        PcText.Focus();
+        PcText.CaretIndex = PcText.Text.Length;
+        PcText.ScrollToEnd();
+    }
     private string GetAnswerPrompt()
     {
         if (string.IsNullOrWhiteSpace(PcText.Text)) throw new InvalidOperationException("PC caption text is empty.");
@@ -422,6 +430,7 @@ public partial class MainWindow : Window
         string prompt;
         try { prompt = GetAnswerPrompt(); }
         catch (InvalidOperationException error) { ShowError(error.Message); return; }
+        MoveCaptionCaretToEnd();
         TranslationInputText.Text = prompt;
         using var cancellation = new CancellationTokenSource();
         answerCancellation = cancellation;
