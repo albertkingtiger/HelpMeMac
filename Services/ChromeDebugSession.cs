@@ -59,11 +59,18 @@ public sealed class ChromeDebugSession : IAsyncDisposable
                 using var document = JsonDocument.Parse(await http.GetStringAsync($"http://127.0.0.1:{Port}/json/list"));
                 var hosts = document.RootElement.EnumerateArray()
                     .Where(page => page.TryGetProperty("type", out var type) && type.GetString() == "page")
-                    .Select(page => Uri.TryCreate(page.GetProperty("url").GetString(), UriKind.Absolute, out var uri) ? uri.Host : "")
+                    .Select(page => page.TryGetProperty("url", out var value) &&
+                        Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri)
+                        ? uri.Host.Trim().TrimStart("www.".ToCharArray())
+                        : "")
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach (var (host, url) in new[] { ("chatgpt.com", "https://chatgpt.com/"), ("claude.ai", "https://claude.ai/") })
+                foreach (var (url, exists) in new[]
                 {
-                    if (hosts.Any(existing => existing == host || existing.EndsWith("." + host, StringComparison.OrdinalIgnoreCase))) continue;
+                    ("https://chatgpt.com/", hosts.Any(IsChatGptHost)),
+                    ("https://claude.ai/", hosts.Any(IsClaudeHost))
+                })
+                {
+                    if (exists) continue;
                     using var response = await http.PutAsync($"http://127.0.0.1:{Port}/json/new?{Uri.EscapeDataString(url)}", null);
                     response.EnsureSuccessStatusCode();
                 }
@@ -74,6 +81,15 @@ public sealed class ChromeDebugSession : IAsyncDisposable
         }
         throw new IOException("Chrome remote debugging did not become available.");
     }
+
+    private static bool IsChatGptHost(string host) =>
+        host.Equals("chatgpt.com", StringComparison.OrdinalIgnoreCase) ||
+        host.EndsWith(".chatgpt.com", StringComparison.OrdinalIgnoreCase) ||
+        host.Equals("chat.openai.com", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsClaudeHost(string host) =>
+        host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase) ||
+        host.EndsWith(".claude.ai", StringComparison.OrdinalIgnoreCase);
 
     public Task<string> SendPromptAsync(string prompt, string provider,
         Action<string>? progress, CancellationToken cancellation)
