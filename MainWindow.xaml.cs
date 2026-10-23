@@ -121,7 +121,7 @@ public partial class MainWindow : Window
     {
         Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 32));
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI");
-        Width = 1060; Height = 860; MinWidth = 700; MinHeight = 300;
+        Width = 1060; Height = 860; MinWidth = 700; MinHeight = 250;
         var root = new Grid { Margin = new Thickness(28) };
         for (var i = 0; i < 6; i++) root.RowDefinitions.Add(new RowDefinition { Height = i < 2 || i == 5 ? GridLength.Auto : new GridLength(1, GridUnitType.Star) });
         var title = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
