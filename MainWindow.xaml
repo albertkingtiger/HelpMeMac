@@ -31,27 +31,54 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="8,8,0,0">
-      <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-        <Border Style="{StaticResource SectionHeader}">
-          <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
-              <TextBlock Text="01  PC AUDIO" VerticalAlignment="Center" FontSize="11"/>
-            </Border>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-              <Button Content="Format" Click="Format_Click" ToolTip="Clear all PC caption text"/>
-              <Button x:Name="SaveButton" Content="Save" Click="Save_Click" ToolTip="Save captions as a text file"/>
-              <ToggleButton x:Name="PcToggle" Click="PcToggle_Click" AutomationProperties.Name="PC captions start or stop" Margin="4,0,0,0"/>
-            </StackPanel>
-          </Grid>
-        </Border>
-        <TextBox Grid.Row="1" x:Name="PcText" IsReadOnly="True" IsReadOnlyCaretVisible="True"
-                 TextChanged="PcText_TextChanged" PreviewMouseLeftButtonDown="PcText_PreviewMouseLeftButtonDown"
-                 ToolTip="Click a word to save the AI send position." AutomationProperties.Name="PC audio captions"/>
-      </Grid>
-    </Border>
+    <Grid Grid.Row="1" Grid.Column="0" Margin="8,8,0,0">
+      <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="5"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Border Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Style="{StaticResource SectionHeader}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+                <TextBlock Text="01  PC AUDIO" VerticalAlignment="Center" FontSize="11"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Format" Click="Format_Click" ToolTip="Clear all PC caption text"/>
+                <Button x:Name="SaveButton" Content="Save" Click="Save_Click" ToolTip="Save captions as a text file"/>
+                <ToggleButton x:Name="PcToggle" Click="PcToggle_Click" AutomationProperties.Name="PC captions start or stop" Margin="4,0,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <TextBox Grid.Row="1" x:Name="PcText" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                   TextChanged="PcText_TextChanged" PreviewMouseLeftButtonDown="PcText_PreviewMouseLeftButtonDown"
+                   ToolTip="Click a word to save the AI send position." AutomationProperties.Name="PC audio captions"/>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Background="{StaticResource Divider}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                    ShowsPreview="False" ToolTip="Drag to resize PC audio and translation"/>
+
+      <Border Grid.Row="2" Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Style="{StaticResource SectionHeader}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+                <TextBlock Text="02  TRANSLATION" FontSize="11" VerticalAlignment="Center"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Format" Click="TranslationFormat_Click" ToolTip="Clear translated text"/>
+                <Button Content="Save" Click="Save_Click" Tag="Translation" ToolTip="Save translated text as a file"/>
+                <ToggleButton x:Name="TranslationToggle" Click="TranslationToggle_Click" AutomationProperties.Name="Korean translation start or stop" Margin="4,0,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <TextBox Grid.Row="1" x:Name="TranslationText" IsReadOnly="True" IsReadOnlyCaretVisible="True" AutomationProperties.Name="Korean translation"/>
+        </Grid>
+      </Border>
+    </Grid>
 
     <GridSplitter Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                   Background="{StaticResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
@@ -81,20 +108,6 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Panel}" Visibility="Collapsed">
-      <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-        <Border Style="{StaticResource SectionHeader}">
-          <DockPanel>
-            <ToggleButton x:Name="TranslationToggle" DockPanel.Dock="Right" Click="TranslationToggle_Click" AutomationProperties.Name="Korean translation start or stop"/>
-            <Button Content="Format" DockPanel.Dock="Right" Click="TranslationFormat_Click"/>
-            <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Translation"/>
-            <TextBlock Text="02  TRANSLATION" FontSize="11" VerticalAlignment="Center"/>
-          </DockPanel>
-        </Border>
-        <TextBox Grid.Row="1" x:Name="TranslationText" AutomationProperties.Name="Korean translation"/>
-      </Grid>
-    </Border>
     <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Panel}" Visibility="Collapsed">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>

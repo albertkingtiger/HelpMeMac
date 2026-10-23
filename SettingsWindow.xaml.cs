@@ -13,6 +13,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(CaptionMethod method) : this(method, 9111, "ChatGPT", "", "") { }
     public SettingsWindow(CaptionMethod method, int chromePort, string provider = "ChatGPT", string project = "", string session = "",
         double pcFontSize = 14, string pcTextColor = "#CCCCCC", string pcCaretColor = "#AEAFAD",
+        double translationFontSize = 14, string translationTextColor = "#CCCCCC",
         double answerInputFontSize = 14, string answerInputTextColor = "#CCCCCC",
         double answerFontSize = 14, string answerTextColor = "#CCCCCC")
     {
@@ -24,10 +25,12 @@ public partial class SettingsWindow : Window
         ProjectCombo.Text = project;
         SessionCombo.Text = session;
         PcFontSizeText.Text = pcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        TranslationFontSizeText.Text = translationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         AnswerInputFontSizeText.Text = answerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         AnswerFontSizeText.Text = answerFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         SetColorButton(PcTextColorButton, pcTextColor);
         SetColorButton(PcCaretColorButton, pcCaretColor);
+        SetColorButton(TranslationTextColorButton, translationTextColor);
         SetColorButton(AnswerInputTextColorButton, answerInputTextColor);
         SetColorButton(AnswerTextColorButton, answerTextColor);
     }
@@ -39,6 +42,8 @@ public partial class SettingsWindow : Window
     public double PcFontSize => ReadFontSize(PcFontSizeText);
     public string PcTextColor => PcTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public string PcCaretColor => PcCaretColorButton.Content?.ToString() ?? "#AEAFAD";
+    public double TranslationFontSize => ReadFontSize(TranslationFontSizeText);
+    public string TranslationTextColor => TranslationTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public double AnswerInputFontSize => ReadFontSize(AnswerInputFontSizeText);
     public string AnswerInputTextColor => AnswerInputTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public double AnswerFontSize => ReadFontSize(AnswerFontSizeText);
@@ -71,7 +76,7 @@ public partial class SettingsWindow : Window
     }
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (new[] { PcFontSize, AnswerInputFontSize, AnswerFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
+        if (new[] { PcFontSize, TranslationFontSize, AnswerInputFontSize, AnswerFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
         {
             System.Windows.MessageBox.Show(this, "Enter font sizes from 8 to 48.", "Settings",
                 MessageBoxButton.OK, MessageBoxImage.Information);

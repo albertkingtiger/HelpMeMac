@@ -36,7 +36,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="146"/><ColumnDefinition Width="70"/><ColumnDefinition Width="120"/><ColumnDefinition Width="120"/>
           </Grid.ColumnDefinitions>
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <TextBlock Grid.Column="1" Text="Font size" Foreground="{StaticResource Muted}" FontSize="11"/>
           <TextBlock Grid.Column="2" Text="Text color" Foreground="{StaticResource Muted}" FontSize="11"/>
           <TextBlock Grid.Column="3" Text="Caret color" Foreground="{StaticResource Muted}" FontSize="11"/>
@@ -46,13 +46,17 @@
           <Button Grid.Row="1" Grid.Column="2" x:Name="PcTextColorButton" Click="ColorButton_Click" Margin="0,8,8,4" ToolTip="Choose PC caption text color"/>
           <Button Grid.Row="1" Grid.Column="3" x:Name="PcCaretColorButton" Click="ColorButton_Click" Margin="0,8,0,4" ToolTip="Choose PC caption caret color"/>
 
-          <TextBlock Grid.Row="2" Text="04  PROMPT" VerticalAlignment="Center"/>
-          <TextBox Grid.Row="2" Grid.Column="1" x:Name="AnswerInputFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
-          <Button Grid.Row="2" Grid.Column="2" x:Name="AnswerInputTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose prompt text color"/>
+          <TextBlock Grid.Row="2" Text="02  TRANSLATION" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="TranslationFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
+          <Button Grid.Row="2" Grid.Column="2" x:Name="TranslationTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose translation text color"/>
 
-          <TextBlock Grid.Row="3" Text="04  ANSWER" VerticalAlignment="Center"/>
-          <TextBox Grid.Row="3" Grid.Column="1" x:Name="AnswerFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
-          <Button Grid.Row="3" Grid.Column="2" x:Name="AnswerTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose answer text color"/>
+          <TextBlock Grid.Row="3" Text="04  PROMPT" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="AnswerInputFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
+          <Button Grid.Row="3" Grid.Column="2" x:Name="AnswerInputTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose prompt text color"/>
+
+          <TextBlock Grid.Row="4" Text="04  ANSWER" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="4" Grid.Column="1" x:Name="AnswerFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
+          <Button Grid.Row="4" Grid.Column="2" x:Name="AnswerTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose answer text color"/>
         </Grid>
         <TextBlock Text="Font sizes can be from 8 to 48." Foreground="{StaticResource Muted}" FontSize="11" Margin="146,10,0,0"/>
       </StackPanel>

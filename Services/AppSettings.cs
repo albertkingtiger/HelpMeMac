@@ -22,6 +22,8 @@ public sealed class AppSettings
     public double PcFontSize { get; set; } = 14;
     public string PcTextColor { get; set; } = "#CCCCCC";
     public string PcCaretColor { get; set; } = "#AEAFAD";
+    public double TranslationFontSize { get; set; } = 14;
+    public string TranslationTextColor { get; set; } = "#CCCCCC";
     public double AnswerInputFontSize { get; set; } = 14;
     public string AnswerInputTextColor { get; set; } = "#CCCCCC";
     public double AnswerFontSize { get; set; } = 14;
@@ -62,6 +64,8 @@ public sealed class AppSettings
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
                     if (IsColor(saved.PcTextColor)) result.PcTextColor = saved.PcTextColor.ToUpperInvariant();
                     if (IsColor(saved.PcCaretColor)) result.PcCaretColor = saved.PcCaretColor.ToUpperInvariant();
+                    if (IsFontSize(saved.TranslationFontSize)) result.TranslationFontSize = saved.TranslationFontSize;
+                    if (IsColor(saved.TranslationTextColor)) result.TranslationTextColor = saved.TranslationTextColor.ToUpperInvariant();
                     if (IsFontSize(saved.AnswerInputFontSize)) result.AnswerInputFontSize = saved.AnswerInputFontSize;
                     if (IsColor(saved.AnswerInputTextColor)) result.AnswerInputTextColor = saved.AnswerInputTextColor.ToUpperInvariant();
                     if (IsFontSize(saved.AnswerFontSize)) result.AnswerFontSize = saved.AnswerFontSize;
@@ -97,15 +101,18 @@ public sealed class AppSettings
         SavePreferences();
     }
     public void SaveEditorAppearance(double pcFontSize, string pcTextColor, string pcCaretColor,
+        double translationFontSize, string translationTextColor,
         double answerInputFontSize, string answerInputTextColor, double answerFontSize, string answerTextColor)
     {
-        if (!IsFontSize(pcFontSize) || !IsFontSize(answerInputFontSize) || !IsFontSize(answerFontSize))
+        if (!IsFontSize(pcFontSize) || !IsFontSize(translationFontSize) || !IsFontSize(answerInputFontSize) || !IsFontSize(answerFontSize))
             throw new ArgumentOutOfRangeException(nameof(pcFontSize), "Font sizes must be between 8 and 48.");
-        foreach (var color in new[] { pcTextColor, pcCaretColor, answerInputTextColor, answerTextColor })
+        foreach (var color in new[] { pcTextColor, pcCaretColor, translationTextColor, answerInputTextColor, answerTextColor })
             if (!IsColor(color)) throw new ArgumentException("Colors must use #RRGGBB format.", nameof(pcTextColor));
         PcFontSize = pcFontSize;
         PcTextColor = pcTextColor.ToUpperInvariant();
         PcCaretColor = pcCaretColor.ToUpperInvariant();
+        TranslationFontSize = translationFontSize;
+        TranslationTextColor = translationTextColor.ToUpperInvariant();
         AnswerInputFontSize = answerInputFontSize;
         AnswerInputTextColor = answerInputTextColor.ToUpperInvariant();
         AnswerFontSize = answerFontSize;
@@ -115,7 +122,8 @@ public sealed class AppSettings
     private void SavePreferences()
     {
         var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
-            PcFontSize, PcTextColor, PcCaretColor, AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor),
+            PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
+            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -137,6 +145,7 @@ public sealed class AppSettings
     private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession,
         double WindowWidth = 1060, double WindowHeight = 860,
         double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
+        double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
         double AnswerInputFontSize = 14, string AnswerInputTextColor = "#CCCCCC",
         double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC");
     public static string Resolve(string path)

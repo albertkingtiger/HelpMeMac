@@ -415,6 +415,8 @@ public partial class MainWindow : Window
         PcText.FontSize = settings.PcFontSize;
         PcText.Foreground = Brush(settings.PcTextColor);
         PcText.CaretBrush = Brush(settings.PcCaretColor);
+        TranslationText.FontSize = settings.TranslationFontSize;
+        TranslationText.Foreground = Brush(settings.TranslationTextColor);
         TranslationInputText.FontSize = settings.AnswerInputFontSize;
         TranslationInputText.Foreground = Brush(settings.AnswerInputTextColor);
         AnswerText.FontSize = settings.AnswerFontSize;
@@ -555,11 +557,14 @@ public partial class MainWindow : Window
             Action<string> onCaption = text => UI(() =>
             {
                 if (generation != pcGeneration) return;
-                if (PcToggle.IsChecked == true) CommitLiveCaption(text);
+                if (PcToggle.IsChecked == true || (TranslationToggle.IsChecked == true && translationUsesAudio))
+                    CommitLiveCaption(text);
             });
             Action<string> onPreview = text => UI(() =>
             {
-                if (generation == pcGeneration && PcToggle.IsChecked == true) SetLiveCaption(text);
+                if (generation == pcGeneration &&
+                    (PcToggle.IsChecked == true || (TranslationToggle.IsChecked == true && translationUsesAudio)))
+                    SetLiveCaption(text);
             });
             Action<string> onStatus = message => WorkerMessage(message, () => generation == pcGeneration);
             ICaptionSession session;
@@ -580,6 +585,7 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(settings.CaptionMethod, settings.ChromeDebugPort,
             settings.AiProvider, settings.AiProject, settings.AiSession,
             settings.PcFontSize, settings.PcTextColor, settings.PcCaretColor,
+            settings.TranslationFontSize, settings.TranslationTextColor,
             settings.AnswerInputFontSize, settings.AnswerInputTextColor,
             settings.AnswerFontSize, settings.AnswerTextColor) { Owner = this };
         if (dialog.ShowDialog() != true) return;
@@ -589,6 +595,7 @@ public partial class MainWindow : Window
             settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
             settings.SaveEditorAppearance(dialog.PcFontSize, dialog.PcTextColor, dialog.PcCaretColor,
+                dialog.TranslationFontSize, dialog.TranslationTextColor,
                 dialog.AnswerInputFontSize, dialog.AnswerInputTextColor,
                 dialog.AnswerFontSize, dialog.AnswerTextColor);
             ApplyEditorAppearance();
@@ -605,8 +612,7 @@ public partial class MainWindow : Window
     {
         await ChangeAsync(async () =>
         {
-            // Explicit Stop wins even when translation originally requested capture.
-            translationUsesAudio = false;
+            translationUsesAudio = PcToggle.IsChecked != true && TranslationToggle.IsChecked == true;
             try { await UpdatePcAsync(); }
             catch { PcToggle.IsChecked = false; throw; }
         });
@@ -621,7 +627,7 @@ public partial class MainWindow : Window
                 var generation = ++translationGeneration;
                 translatedSource = translatedTarget = "";
                 documentTranslator.Clear();
-                translationUsesAudio = string.IsNullOrWhiteSpace(PcText.Text);
+                translationUsesAudio = PcToggle.IsChecked != true;
                 try
                 {
                     translation = new TranslationSession(settings, "eng_Latn", _ => { },
@@ -633,6 +639,7 @@ public partial class MainWindow : Window
                 catch
                 {
                     TranslationToggle.IsChecked = false; ++translationGeneration;
+                    translationUsesAudio = false;
                     if (translation is not null) { await translation.DisposeAsync(); translation = null; }
                     await UpdatePcAsync();
                     throw;
@@ -641,6 +648,7 @@ public partial class MainWindow : Window
             else
             {
                 ++translationGeneration;
+                translationUsesAudio = false;
                 translationTimer.Stop();
                 if (translation is not null) { await translation.DisposeAsync(); translation = null; }
                 await UpdatePcAsync();

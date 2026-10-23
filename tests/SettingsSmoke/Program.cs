@@ -39,10 +39,11 @@ try
     aiSettings = AppSettings.Load(preferencePath);
     if (aiSettings.AiProject != "" || aiSettings.AiSession != "")
         throw new Exception("Blank destinations must stay blank.");
-    settings.SaveEditorAppearance(17.5, "#112233", "#44AA66", 15, "#DDEEFF", 19, "#ABCDEF");
+    settings.SaveEditorAppearance(17.5, "#112233", "#44AA66", 16, "#778899", 15, "#DDEEFF", 19, "#ABCDEF");
     var appearanceSettings = AppSettings.Load(preferencePath);
     if (appearanceSettings.PcFontSize != 17.5 || appearanceSettings.PcTextColor != "#112233" ||
         appearanceSettings.PcCaretColor != "#44AA66" || appearanceSettings.AnswerInputFontSize != 15 ||
+        appearanceSettings.TranslationFontSize != 16 || appearanceSettings.TranslationTextColor != "#778899" ||
         appearanceSettings.AnswerInputTextColor != "#DDEEFF" || appearanceSettings.AnswerFontSize != 19 ||
         appearanceSettings.AnswerTextColor != "#ABCDEF")
         throw new Exception("Editor appearance settings did not round-trip through JSON preferences.");
