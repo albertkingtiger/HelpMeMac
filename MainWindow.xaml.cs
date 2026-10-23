@@ -137,6 +137,10 @@ public partial class MainWindow : Window
     private static void Append(TextBox box, string text)
     {
         var follow = IsNearBottom(box);
+        var preserveCaret = box.IsKeyboardFocusWithin && box.CaretIndex < box.Text.Length;
+        var caret = box.CaretIndex;
+        var selectionStart = box.SelectionStart;
+        var selectionLength = box.SelectionLength;
         var chunk = Regex.Replace(text ?? "", @"\s+", " ").Trim();
         if (chunk.Length == 0) return;
         // Whisper may close a short audio fragment with a period even when the
@@ -146,7 +150,12 @@ public partial class MainWindow : Window
             box.Text = box.Text[..^1];
         var separator = box.Text.Length > 0 && !char.IsWhiteSpace(box.Text[^1]) && !char.IsPunctuation(chunk[0]) ? " " : "";
         box.AppendText(separator + chunk);
-        if (follow) box.ScrollToEnd();
+        if (preserveCaret)
+        {
+            box.Select(Math.Min(selectionStart, box.Text.Length), Math.Min(selectionLength, Math.Max(0, box.Text.Length - selectionStart)));
+            box.CaretIndex = Math.Min(caret, box.Text.Length);
+        }
+        else if (follow) box.ScrollToEnd();
     }
 
     private void QueueCaption(string text, bool pcAudio)
@@ -179,6 +188,10 @@ public partial class MainWindow : Window
     private void SetLiveCaption(string text)
     {
         var follow = IsNearBottom(PcText);
+        var preserveCaret = PcText.IsKeyboardFocusWithin && PcText.CaretIndex < PcText.Text.Length;
+        var caret = PcText.CaretIndex;
+        var selectionStart = PcText.SelectionStart;
+        var selectionLength = PcText.SelectionLength;
         if (!pcLiveCaptionActive)
         {
             if (PcText.Text.Length > 0 && !char.IsWhiteSpace(PcText.Text[^1])) PcText.AppendText(" ");
@@ -187,8 +200,16 @@ public partial class MainWindow : Window
         }
         var start = Math.Clamp(pcLiveCaptionStart, 0, PcText.Text.Length);
         PcText.Text = PcText.Text[..start] + text.Trim();
-        PcText.CaretIndex = PcText.Text.Length;
-        if (follow) PcText.ScrollToEnd();
+        if (preserveCaret)
+        {
+            PcText.Select(Math.Min(selectionStart, PcText.Text.Length), Math.Min(selectionLength, Math.Max(0, PcText.Text.Length - selectionStart)));
+            PcText.CaretIndex = Math.Min(caret, PcText.Text.Length);
+        }
+        else
+        {
+            PcText.CaretIndex = PcText.Text.Length;
+            if (follow) PcText.ScrollToEnd();
+        }
     }
 
     private void CommitLiveCaption(string text)
