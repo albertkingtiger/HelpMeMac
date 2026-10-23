@@ -75,7 +75,7 @@
     </Style>
     <Style TargetType="TextBox">
       <Setter Property="Background" Value="{StaticResource EditorBackground}"/><Setter Property="Foreground" Value="{StaticResource Foreground}"/>
-      <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="12,10"/>
+      <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="5"/>
       <Setter Property="FontFamily" Value="Consolas"/><Setter Property="FontSize" Value="14"/>
       <Setter Property="CaretBrush" Value="#AEAFAD"/><Setter Property="SelectionBrush" Value="{StaticResource Selection}"/><Setter Property="SelectionTextBrush" Value="White"/>
       <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="IsReadOnly" Value="True"/><Setter Property="AcceptsReturn" Value="True"/>
