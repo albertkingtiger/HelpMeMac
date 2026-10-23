@@ -1,0 +1,15 @@
+bin/
+obj/
+.tools/
+.venv/
+models/*
+!models/.gitkeep
+__pycache__/
+*.user
+user-settings.json
+user-settings.json.tmp
+
+dist/
+
+.tmp/
+

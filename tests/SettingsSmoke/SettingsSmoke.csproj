@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../Services/CaptionMethod.cs" Link="CaptionMethod.cs" />
+  </ItemGroup>
+</Project>

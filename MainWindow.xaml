@@ -1,0 +1,62 @@
+<Window x:Class="HelpMe.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Help Me!" Width="1060" Height="860"
+        Icon="{StaticResource AppIcon}"
+        MinWidth="700" MinHeight="650" Background="#0B1220" FontFamily="Segoe UI" WindowStyle="None"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
+  <Grid Margin="12">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/><RowDefinition Height="0"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <DockPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
+      <Button Content="×" Width="32" MinWidth="32" Padding="0" DockPanel.Dock="Right" Click="Close_Click" FontSize="18" ToolTip="Close"/>
+      <Button Content="Minimize" DockPanel.Dock="Right" Click="Minimize_Click" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Minimize to tray"/>
+      <Border DockPanel.Dock="Right" Background="#183A36" CornerRadius="12" Padding="12,7" VerticalAlignment="Center" Margin="0,0,8,0">
+        <TextBlock Text="LOCAL · OFFLINE" Foreground="#8AE2C6" FontSize="11" FontWeight="Bold"/>
+      </Border>
+      <Button x:Name="SettingsButton" Content="Settings" DockPanel.Dock="Right" Click="Settings_Click" VerticalAlignment="Center" Margin="0,0,12,0"/>
+      <ToggleButton x:Name="AlwaysOnTopToggle" Content="Always on Top" DockPanel.Dock="Right" Click="AlwaysOnTop_Click" VerticalAlignment="Center" Margin="0,0,12,0" MinWidth="110" ToolTip="Keep Help Me! above other windows"/>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="Help Me!" FontSize="32" FontWeight="Bold"/>
+        <TextBlock Text="Listen. Understand. Speak." Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,8,0,0"/>
+      </StackPanel>
+    </DockPanel>
+    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,6,12">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <DockPanel Height="25" Margin="0"><TextBlock Text="01   PC AUDIO" DockPanel.Dock="Left" FontSize="12" FontWeight="Bold" Foreground="#8DAEFF" VerticalAlignment="Center"/><ToggleButton x:Name="PcToggle" MinWidth="42" DockPanel.Dock="Right" Click="PcToggle_Click" AutomationProperties.Name="PC captions start or stop"/>
+          <Button Content="Format" MinWidth="42" DockPanel.Dock="Right" Click="Format_Click" Margin="0,0,8,0" ToolTip="Clear all PC caption text"/>
+          <Button x:Name="SaveButton" Content="Save" MinWidth="42" DockPanel.Dock="Right" Click="Save_Click" Margin="0,0,8,0" ToolTip="Save caption text as a UTF-8 text file"/>
+          <TextBlock Text="Method: Whisper (offline)" FontSize="9" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        </DockPanel>
+        <TextBox Grid.Row="1" x:Name="PcText" IsReadOnly="False" TextChanged="PcText_TextChanged" PreviewMouseLeftButtonDown="PcText_PreviewMouseLeftButtonDown" ToolTip="Click a word to save the AI send position. Capture continues while you edit or send." AutomationProperties.Name="Editable PC caption and translation input" Margin="0"/>
+      </Grid>
+    </Border>
+    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Panel}" Margin="6,0,0,12">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <DockPanel Height="25" Margin="0"><Button x:Name="AnswerSendButton" Content="Send" DockPanel.Dock="Right" Click="AnswerSend_Click" Margin="0,0,8,0"/><Button Content="Format" DockPanel.Dock="Right" Click="AnswerFormat_Click" Margin="0,0,8,0"/><Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Answer" Margin="0,0,8,0"/><TextBlock Text="04   ANSWER" FontSize="13" FontWeight="Bold" Foreground="#F4C27A" VerticalAlignment="Center"/></DockPanel>
+        <TextBox Grid.Row="1" x:Name="AnswerText" AutomationProperties.Name="AI answer" Margin="0" IsReadOnly="True"/>
+      </Grid>
+    </Border>
+    <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource Panel}" Margin="0,0,0,0" Visibility="Collapsed">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <DockPanel Height="25" Margin="0"><ToggleButton x:Name="TranslationToggle" DockPanel.Dock="Right" Click="TranslationToggle_Click" AutomationProperties.Name="Korean translation start or stop"/>
+          <Button Content="Format" DockPanel.Dock="Right" Click="TranslationFormat_Click" Margin="0,0,8,0"/>
+          <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Translation" Margin="0,0,8,0"/>
+          <TextBlock Text="02   Translation" FontSize="13" FontWeight="Bold" Foreground="#79DDC2" VerticalAlignment="Center"/>
+        </DockPanel>
+        <TextBox Grid.Row="1" x:Name="TranslationText" AutomationProperties.Name="Korean translation" Margin="0"/>
+      </Grid>
+    </Border>
+    <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Panel}" Margin="6,0,0,0" Visibility="Collapsed">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <DockPanel Height="25" Margin="0"><ToggleButton x:Name="MicToggle" DockPanel.Dock="Right" Click="MicToggle_Click" AutomationProperties.Name="Microphone captions start or stop"/>
+          <Button Content="Format" DockPanel.Dock="Right" Click="MicFormat_Click" Margin="0,0,8,0"/>
+          <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Microphone" Margin="0,0,8,0"/>
+          <TextBlock Text="03   MICROPHONE" FontSize="13" FontWeight="Bold" Foreground="#D0AAFF" VerticalAlignment="Center"/>
+        </DockPanel>
+        <TextBox Grid.Row="1" x:Name="MicText" AutomationProperties.Name="Microphone captions" Margin="0"/>
+      </Grid>
+    </Border>
+    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" x:Name="Status" Visibility="Collapsed" Foreground="#FFB4A8"
+               TextWrapping="Wrap" Margin="0,16,0,0"/>
+  </Grid>
+</Window>
