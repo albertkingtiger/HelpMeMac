@@ -21,8 +21,8 @@ public partial class App : Application
             // Offscreen rendering for layout verification; never opens an audio device.
             var settingsPreview = e.Args[0] == "--render-settings-preview";
             Window preview = settingsPreview ? new SettingsWindow(Services.CaptionMethod.Whisper) : window;
-            var width = settingsPreview ? 490 : 1004;
-            var height = settingsPreview ? 490 : 748;
+            var width = settingsPreview ? 580 : 1004;
+            var height = settingsPreview ? 650 : 748;
             if (e.Args.Length == 4)
             {
                 // Optional dimensions allow checking compact layouts without

@@ -1,8 +1,9 @@
 using HelpMe.Services;
 
 // Launch this check from any unrelated working directory, as Explorer does.
-var testRegistryPath = AppSettings.RegistryPath + @"\Tests\" + Guid.NewGuid().ToString("N");
-var settings = AppSettings.Load(testRegistryPath);
+// Use an isolated preferences file so the test never touches the user's settings.
+var preferencePath = Path.Combine(Path.GetTempPath(), $"HelpMe.SettingsSmoke.{Guid.NewGuid():N}.json");
+var settings = AppSettings.Load(preferencePath);
 foreach (var path in new[] { settings.WhisperModelPath,
     Path.Combine(settings.TranslationModelPath, "model.bin"), settings.PythonPath,
     "translation/worker.py" })
@@ -25,21 +26,28 @@ try
 }
 finally { File.Delete(localAsset); }
 
-var preferencePath = Path.Combine(AppSettings.Root, "user-settings.json");
 var oldPreferences = File.Exists(preferencePath) ? File.ReadAllBytes(preferencePath) : null;
 try
 {
     settings.SaveChromeDebugPort(9227);
     settings.SaveAiPreferences("Claude", "Work", "Meeting");
-    var aiSettings = AppSettings.Load(testRegistryPath);
+    var aiSettings = AppSettings.Load(preferencePath);
     if (aiSettings.ChromeDebugPort != 9227 || aiSettings.AiProvider != "Claude" ||
         aiSettings.AiProject != "Work" || aiSettings.AiSession != "Meeting")
         throw new Exception("AI settings did not round-trip through JSON preferences.");
     settings.SaveAiPreferences("ChatGPT", "", "");
-    aiSettings = AppSettings.Load(testRegistryPath);
+    aiSettings = AppSettings.Load(preferencePath);
     if (aiSettings.AiProject != "" || aiSettings.AiSession != "")
         throw new Exception("Blank destinations must stay blank.");
+    settings.SaveEditorAppearance(17.5, "#112233", "#44AA66", 15, "#DDEEFF", 19, "#ABCDEF");
+    var appearanceSettings = AppSettings.Load(preferencePath);
+    if (appearanceSettings.PcFontSize != 17.5 || appearanceSettings.PcTextColor != "#112233" ||
+        appearanceSettings.PcCaretColor != "#44AA66" || appearanceSettings.AnswerInputFontSize != 15 ||
+        appearanceSettings.AnswerInputTextColor != "#DDEEFF" || appearanceSettings.AnswerFontSize != 19 ||
+        appearanceSettings.AnswerTextColor != "#ABCDEF")
+        throw new Exception("Editor appearance settings did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: AI provider, destination and port preference persistence");
+    Console.WriteLine("PASS: per-editor font and color preference persistence");
     Console.WriteLine("PASS: cross-platform JSON preferences and Whisper-only captions");
 }
 finally

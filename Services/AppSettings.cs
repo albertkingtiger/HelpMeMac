@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace HelpMe.Services;
 
@@ -18,13 +19,21 @@ public sealed class AppSettings
     public string AiSession { get; set; } = "";
     public double WindowWidth { get; set; } = 1060;
     public double WindowHeight { get; set; } = 860;
+    public double PcFontSize { get; set; } = 14;
+    public string PcTextColor { get; set; } = "#CCCCCC";
+    public string PcCaretColor { get; set; } = "#AEAFAD";
+    public double AnswerInputFontSize { get; set; } = 14;
+    public string AnswerInputTextColor { get; set; } = "#CCCCCC";
+    public double AnswerFontSize { get; set; } = 14;
+    public string AnswerTextColor { get; set; } = "#CCCCCC";
     public static string Root { get; private set; } = AppContext.BaseDirectory;
     private static string? projectRoot;
     private static string PreferencesPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HelpMe", "settings.json");
     private static string LocalPreferencesPath => Path.Combine(Root, "user-settings.json");
+    private string preferencesWritePath = PreferencesPath;
     public const string RegistryPath = "HelpMe";
 
-    public static AppSettings Load(string? ignoredLegacyKey = null)
+    public static AppSettings Load(string? preferencesPathOverride = null)
     {
         Root = AppContext.BaseDirectory;
         projectRoot = null;
@@ -33,7 +42,10 @@ public sealed class AppSettings
             if (File.Exists(Path.Combine(directory.FullName, "HelpMe.csproj"))) { projectRoot = directory.FullName; break; }
         }
         var result = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(Resolve("appsettings.json"))) ?? throw new InvalidDataException("Invalid appsettings.json.");
-        var preferencesPath = File.Exists(PreferencesPath) ? PreferencesPath : LocalPreferencesPath;
+        var preferencesPath = string.IsNullOrWhiteSpace(preferencesPathOverride)
+            ? (File.Exists(PreferencesPath) ? PreferencesPath : LocalPreferencesPath)
+            : Path.GetFullPath(preferencesPathOverride);
+        result.preferencesWritePath = string.IsNullOrWhiteSpace(preferencesPathOverride) ? PreferencesPath : preferencesPath;
         if (File.Exists(preferencesPath))
         {
             try
@@ -47,6 +59,13 @@ public sealed class AppSettings
                     result.AiSession = saved.AiSession ?? "";
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
+                    if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
+                    if (IsColor(saved.PcTextColor)) result.PcTextColor = saved.PcTextColor.ToUpperInvariant();
+                    if (IsColor(saved.PcCaretColor)) result.PcCaretColor = saved.PcCaretColor.ToUpperInvariant();
+                    if (IsFontSize(saved.AnswerInputFontSize)) result.AnswerInputFontSize = saved.AnswerInputFontSize;
+                    if (IsColor(saved.AnswerInputTextColor)) result.AnswerInputTextColor = saved.AnswerInputTextColor.ToUpperInvariant();
+                    if (IsFontSize(saved.AnswerFontSize)) result.AnswerFontSize = saved.AnswerFontSize;
+                    if (IsColor(saved.AnswerTextColor)) result.AnswerTextColor = saved.AnswerTextColor.ToUpperInvariant();
                 }
             }
             catch (JsonException) { }
@@ -77,15 +96,33 @@ public sealed class AppSettings
         WindowHeight = Math.Clamp(height, 300, 5000);
         SavePreferences();
     }
+    public void SaveEditorAppearance(double pcFontSize, string pcTextColor, string pcCaretColor,
+        double answerInputFontSize, string answerInputTextColor, double answerFontSize, string answerTextColor)
+    {
+        if (!IsFontSize(pcFontSize) || !IsFontSize(answerInputFontSize) || !IsFontSize(answerFontSize))
+            throw new ArgumentOutOfRangeException(nameof(pcFontSize), "Font sizes must be between 8 and 48.");
+        foreach (var color in new[] { pcTextColor, pcCaretColor, answerInputTextColor, answerTextColor })
+            if (!IsColor(color)) throw new ArgumentException("Colors must use #RRGGBB format.", nameof(pcTextColor));
+        PcFontSize = pcFontSize;
+        PcTextColor = pcTextColor.ToUpperInvariant();
+        PcCaretColor = pcCaretColor.ToUpperInvariant();
+        AnswerInputFontSize = answerInputFontSize;
+        AnswerInputTextColor = answerInputTextColor.ToUpperInvariant();
+        AnswerFontSize = answerFontSize;
+        AnswerTextColor = answerTextColor.ToUpperInvariant();
+        SavePreferences();
+    }
     private void SavePreferences()
     {
-        var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight), new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
+            PcFontSize, PcTextColor, PcCaretColor, AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor),
+            new JsonSerializerOptions { WriteIndented = true });
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(PreferencesPath)!);
-            File.WriteAllText(PreferencesPath, json);
+            Directory.CreateDirectory(Path.GetDirectoryName(preferencesWritePath)!);
+            File.WriteAllText(preferencesWritePath, json);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException) when (string.Equals(preferencesWritePath, PreferencesPath, StringComparison.OrdinalIgnoreCase))
         {
             File.WriteAllText(LocalPreferencesPath, json);
         }
@@ -95,7 +132,13 @@ public sealed class AppSettings
         if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 0.75 or > 15 || result.SilenceSeconds is < 0.1 or > 3 || result.ChromeDebugPort is < 1024 or > 65535)
             throw new InvalidDataException("Audio thresholds in appsettings.json are out of range.");
     }
-    private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession, double WindowWidth = 1060, double WindowHeight = 860);
+    private static bool IsFontSize(double value) => value is >= 8 and <= 48;
+    private static bool IsColor(string? value) => value is not null && Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$", RegexOptions.CultureInvariant);
+    private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession,
+        double WindowWidth = 1060, double WindowHeight = 860,
+        double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
+        double AnswerInputFontSize = 14, string AnswerInputTextColor = "#CCCCCC",
+        double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC");
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);

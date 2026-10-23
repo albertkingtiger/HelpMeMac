@@ -1,5 +1,5 @@
 <Window x:Class="HelpMe.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Settings" Width="490" Height="490"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Settings" Width="580" Height="650"
         ResizeMode="NoResize" WindowStyle="None" WindowStartupLocation="CenterOwner"
         Background="{StaticResource WindowBackground}" Foreground="{StaticResource Foreground}" FontFamily="Segoe UI" FontSize="13">
   <Grid>
@@ -10,27 +10,53 @@
         <TextBlock Text="Settings" VerticalAlignment="Center"/>
       </DockPanel>
     </Border>
-    <Grid Grid.Row="1" Margin="24,18,24,0">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-      </Grid.RowDefinitions>
-      <TextBlock Grid.ColumnSpan="2" Text="CAPTIONS" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,12"/>
-      <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,20">
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="24,18,24,18">
+        <TextBlock Text="CAPTIONS" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,12"/>
         <RadioButton x:Name="WhisperOption" Content="Whisper (offline)" GroupName="CaptionMethod" IsChecked="True"/>
-        <TextBlock Text="Transcribe PC audio using the downloaded English model." Foreground="{StaticResource Muted}" Margin="23,6,0,0" TextWrapping="Wrap"/>
+        <TextBlock Text="Transcribe PC audio using the downloaded English model." Foreground="{StaticResource Muted}" Margin="23,6,0,20" TextWrapping="Wrap"/>
+
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Text="Chrome debug port" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <TextBox Grid.Column="1" x:Name="ChromePortText" Style="{StaticResource SettingsInput}" Width="100" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+          <TextBlock Grid.Row="1" Text="AI provider" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <ComboBox Grid.Row="1" Grid.Column="1" x:Name="ProviderCombo" Margin="0,0,0,10"/>
+          <TextBlock Grid.Row="2" Text="Project" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="ProjectCombo" Style="{StaticResource SettingsInput}" Margin="0,0,0,10" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
+          <TextBlock Grid.Row="3" Text="Session" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="SessionCombo" Style="{StaticResource SettingsInput}" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
+        </Grid>
+        <TextBlock Text="Send uses the conversation open in the selected provider's Chrome tab." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,14,0,20"/>
+
+        <Border BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+        <TextBlock Text="EDITOR APPEARANCE" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,12"/>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="146"/><ColumnDefinition Width="70"/><ColumnDefinition Width="120"/><ColumnDefinition Width="120"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Grid.Column="1" Text="Font size" Foreground="{StaticResource Muted}" FontSize="11"/>
+          <TextBlock Grid.Column="2" Text="Text color" Foreground="{StaticResource Muted}" FontSize="11"/>
+          <TextBlock Grid.Column="3" Text="Caret color" Foreground="{StaticResource Muted}" FontSize="11"/>
+
+          <TextBlock Grid.Row="1" Text="01  PC AUDIO" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="PcFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,8,0,4"/>
+          <Button Grid.Row="1" Grid.Column="2" x:Name="PcTextColorButton" Click="ColorButton_Click" Margin="0,8,8,4" ToolTip="Choose PC caption text color"/>
+          <Button Grid.Row="1" Grid.Column="3" x:Name="PcCaretColorButton" Click="ColorButton_Click" Margin="0,8,0,4" ToolTip="Choose PC caption caret color"/>
+
+          <TextBlock Grid.Row="2" Text="04  PROMPT" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="AnswerInputFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
+          <Button Grid.Row="2" Grid.Column="2" x:Name="AnswerInputTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose prompt text color"/>
+
+          <TextBlock Grid.Row="3" Text="04  ANSWER" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="AnswerFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
+          <Button Grid.Row="3" Grid.Column="2" x:Name="AnswerTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose answer text color"/>
+        </Grid>
+        <TextBlock Text="Font sizes can be from 8 to 48." Foreground="{StaticResource Muted}" FontSize="11" Margin="146,10,0,0"/>
       </StackPanel>
-      <TextBlock Grid.Row="2" Text="Chrome debug port" VerticalAlignment="Center" Margin="0,0,0,10"/>
-      <TextBox Grid.Row="2" Grid.Column="1" x:Name="ChromePortText" Style="{StaticResource SettingsInput}" Width="100" HorizontalAlignment="Left" Margin="0,0,0,10"/>
-      <TextBlock Grid.Row="3" Text="AI provider" VerticalAlignment="Center" Margin="0,0,0,10"/>
-      <ComboBox Grid.Row="3" Grid.Column="1" x:Name="ProviderCombo" Margin="0,0,0,10"/>
-      <TextBlock Grid.Row="4" Text="Project" VerticalAlignment="Center" Margin="0,0,0,10"/>
-      <TextBox Grid.Row="4" Grid.Column="1" x:Name="ProjectCombo" Style="{StaticResource SettingsInput}" Margin="0,0,0,10" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
-      <TextBlock Grid.Row="5" Text="Session" VerticalAlignment="Center"/>
-      <TextBox Grid.Row="5" Grid.Column="1" x:Name="SessionCombo" Style="{StaticResource SettingsInput}" ToolTip="Saved preference. Send uses the conversation already open in Chrome."/>
-      <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Text="Send uses the conversation open in the selected provider's Chrome tab." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,16,0,0"/>
-    </Grid>
+    </ScrollViewer>
     <Border Grid.Row="2" BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,0" Padding="24,0">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
         <Button Content="Cancel" IsCancel="True" Background="{StaticResource InputBackground}" MinWidth="72" Margin="0,0,8,0"/>

@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
+using Drawing2D = System.Drawing.Drawing2D;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private bool closed;
     private bool exiting;
     private readonly Forms.NotifyIcon trayIcon;
+    private readonly Drawing.Icon trayAppIcon;
     private bool initialized;
     private int pcGeneration;
     private int micGeneration;
@@ -61,6 +63,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        trayAppIcon = CreateTrayAppIcon();
         trayIcon = CreateTrayIcon();
         translationTimer.Tick += async (_, _) =>
         {
@@ -73,6 +76,7 @@ public partial class MainWindow : Window
             settings = AppSettings.Load();
             Width = settings.WindowWidth;
             Height = settings.WindowHeight;
+            ApplyEditorAppearance();
             SizeChanged += (_, _) => { if (initialized) settings.SaveWindowSize(Width, Height); };
             engine = new SpeechEngine(settings);
             initialized = true;
@@ -349,12 +353,72 @@ public partial class MainWindow : Window
         var icon = new Forms.NotifyIcon
         {
             Text = "Help Me!",
-            Icon = Drawing.SystemIcons.Application,
+            Icon = trayAppIcon,
             ContextMenuStrip = menu,
             Visible = true
         };
         icon.DoubleClick += (_, _) => RestoreFromTray();
         return icon;
+    }
+
+    private static Drawing.Icon CreateTrayAppIcon()
+    {
+        using var bitmap = new Drawing.Bitmap(32, 32, Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var graphics = Drawing.Graphics.FromImage(bitmap))
+        {
+            graphics.SmoothingMode = Drawing2D.SmoothingMode.AntiAlias;
+            graphics.Clear(Drawing.Color.Transparent);
+            using var background = new Drawing.SolidBrush(Drawing.Color.FromArgb(11, 18, 32));
+            using var bubble = new Drawing.SolidBrush(Drawing.Color.FromArgb(30, 156, 190));
+            using var sparkle = new Drawing.SolidBrush(Drawing.Color.FromArgb(167, 243, 208));
+            using var frame = RoundedRectangle(new Drawing.RectangleF(1, 1, 30, 30), 7);
+            using var message = RoundedRectangle(new Drawing.RectangleF(6, 6, 20, 15), 4);
+            graphics.FillPath(background, frame);
+            graphics.FillPath(bubble, message);
+            graphics.FillPolygon(bubble, new[]
+            {
+                new Drawing.PointF(10, 19), new Drawing.PointF(10, 25), new Drawing.PointF(16, 20)
+            });
+            graphics.FillPolygon(sparkle, new[]
+            {
+                new Drawing.PointF(16, 8), new Drawing.PointF(18, 12), new Drawing.PointF(22, 14),
+                new Drawing.PointF(18, 16), new Drawing.PointF(16, 20), new Drawing.PointF(14, 16),
+                new Drawing.PointF(10, 14), new Drawing.PointF(14, 12)
+            });
+        }
+        var handle = bitmap.GetHicon();
+        try
+        {
+            using var borrowed = Drawing.Icon.FromHandle(handle);
+            return (Drawing.Icon)borrowed.Clone();
+        }
+        finally { DestroyIcon(handle); }
+    }
+
+    private static Drawing2D.GraphicsPath RoundedRectangle(Drawing.RectangleF bounds, float radius)
+    {
+        var path = new Drawing2D.GraphicsPath();
+        var diameter = radius * 2;
+        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
+
+    private void ApplyEditorAppearance()
+    {
+        PcText.FontSize = settings.PcFontSize;
+        PcText.Foreground = Brush(settings.PcTextColor);
+        PcText.CaretBrush = Brush(settings.PcCaretColor);
+        TranslationInputText.FontSize = settings.AnswerInputFontSize;
+        TranslationInputText.Foreground = Brush(settings.AnswerInputTextColor);
+        AnswerText.FontSize = settings.AnswerFontSize;
+        AnswerText.Foreground = Brush(settings.AnswerTextColor);
     }
 
     private void HideToTray()
@@ -514,13 +578,20 @@ public partial class MainWindow : Window
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(settings.CaptionMethod, settings.ChromeDebugPort,
-            settings.AiProvider, settings.AiProject, settings.AiSession) { Owner = this };
+            settings.AiProvider, settings.AiProject, settings.AiSession,
+            settings.PcFontSize, settings.PcTextColor, settings.PcCaretColor,
+            settings.AnswerInputFontSize, settings.AnswerInputTextColor,
+            settings.AnswerFontSize, settings.AnswerTextColor) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await ChangeAsync(async () =>
         {
             var previousPort = settings.ChromeDebugPort;
             settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
+            settings.SaveEditorAppearance(dialog.PcFontSize, dialog.PcTextColor, dialog.PcCaretColor,
+                dialog.AnswerInputFontSize, dialog.AnswerInputTextColor,
+                dialog.AnswerFontSize, dialog.AnswerTextColor);
+            ApplyEditorAppearance();
             if (previousPort != dialog.ChromeDebugPort)
             {
                 answerCancellation?.Cancel();
@@ -651,6 +722,7 @@ public partial class MainWindow : Window
             closed = true;
             trayIcon.Visible = false;
             trayIcon.Dispose();
+            trayAppIcon.Dispose();
             changes.Release();
             // Cleanup may finish synchronously. Close must run after the current
             // Closing event has returned, or WPF rejects the reentrant call.
