@@ -52,7 +52,6 @@ public partial class MainWindow : Window
     private bool pcLiveCaptionActive;
     private int pcLiveCaptionStart;
     private readonly DocumentTranslator documentTranslator = new();
-    private static readonly HashSet<TextBox> pinnedScrollPositions = new();
     private int translationOutputVersion;
     private int savedCaptionLocation;
     private bool hasSavedCaptionLocation;
@@ -102,7 +101,7 @@ public partial class MainWindow : Window
     {
         Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 32));
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI");
-        Width = 1060; Height = 860; MinWidth = 700; MinHeight = 650;
+        Width = 1060; Height = 860; MinWidth = 700; MinHeight = 250;
         var root = new Grid { Margin = new Thickness(28) };
         for (var i = 0; i < 6; i++) root.RowDefinitions.Add(new RowDefinition { Height = i < 2 || i == 5 ? GridLength.Auto : new GridLength(1, GridUnitType.Star) });
         var title = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
@@ -120,7 +119,7 @@ public partial class MainWindow : Window
     private static System.Windows.Media.SolidColorBrush Brush(string hex) => new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
     private Button Button(string text, RoutedEventHandler click, string? tag = null) { var b = new Button { Content = text, Tag = tag, Margin = new Thickness(0, 0, 8, 0) }; b.Click += click; return b; }
     private ToggleButton Toggle(RoutedEventHandler click) { var b = new ToggleButton(); b.Click += click; return b; }
-    private Border Panel(string title, string color, out TextBlock method, out TextBox box) { var border = new Border { Style = (Style)FindResource("Panel"), Margin = new Thickness(0, 0, 0, title.StartsWith("03") ? 0 : 12) }; var grid = new Grid(); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); border.Child = grid; method = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = Brush(color), VerticalAlignment = VerticalAlignment.Center }; box = new TextBox { Margin = new Thickness(0), FontSize = 15 }; box.PreviewMouseDown += TextBox_PreviewMouseDown; box.PreviewMouseWheel += TextBox_PreviewMouseWheel; box.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(TextBox_ScrollChanged)); AutomationProperties.SetName(box, title); Grid.SetRow(box, 1); grid.Children.Add(box); return border; }
+    private Border Panel(string title, string color, out TextBlock method, out TextBox box) { var border = new Border { Style = (Style)FindResource("Panel"), Margin = new Thickness(0, 0, 0, title.StartsWith("03") ? 0 : 12) }; var grid = new Grid(); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); border.Child = grid; method = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = Brush(color), VerticalAlignment = VerticalAlignment.Center }; box = new TextBox { Margin = new Thickness(0), FontSize = 15 }; AutomationProperties.SetName(box, title); Grid.SetRow(box, 1); grid.Children.Add(box); return border; }
     private void FormatHeader(Border panel, ToggleButton toggle, ToggleButton? windowToggle, Button format, Button save, TextBlock? header, TextBlock? subheader = null) { var grid = (Grid)panel.Child; var dock = new DockPanel { Height = 30, Margin = new Thickness(0) }; Grid.SetRow(dock, 0); DockPanel.SetDock(toggle, Dock.Right); dock.Children.Add(toggle); if (windowToggle is not null) { DockPanel.SetDock(windowToggle, Dock.Right); windowToggle.Margin = new Thickness(0, 0, 8, 0); dock.Children.Add(windowToggle); } DockPanel.SetDock(format, Dock.Right); dock.Children.Add(format); DockPanel.SetDock(save, Dock.Right); dock.Children.Add(save); if (header is not null) { var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; stack.Children.Add(header); if (subheader is not null) stack.Children.Add(subheader); dock.Children.Add(stack); } grid.Children.Add(dock); }
 
     private void UI(Action action) => Dispatcher.BeginInvoke(() => { if (!closing) action(); });
@@ -137,6 +136,7 @@ public partial class MainWindow : Window
     }
     private static void Append(TextBox box, string text)
     {
+        var follow = IsNearBottom(box);
         var chunk = Regex.Replace(text ?? "", @"\s+", " ").Trim();
         if (chunk.Length == 0) return;
         // Whisper may close a short audio fragment with a period even when the
@@ -146,10 +146,7 @@ public partial class MainWindow : Window
             box.Text = box.Text[..^1];
         var separator = box.Text.Length > 0 && !char.IsWhiteSpace(box.Text[^1]) && !char.IsPunctuation(chunk[0]) ? " " : "";
         box.AppendText(separator + chunk);
-        // Section 01 is a readable document: new caption text must not pull
-        // the user's view away from the position they are reading.
-        if (!string.Equals(box.Name, "PcText", StringComparison.Ordinal))
-            ScrollToEndIfFollowing(box);
+        if (follow) box.ScrollToEnd();
     }
 
     private void QueueCaption(string text, bool pcAudio)
@@ -181,6 +178,7 @@ public partial class MainWindow : Window
 
     private void SetLiveCaption(string text)
     {
+        var follow = IsNearBottom(PcText);
         if (!pcLiveCaptionActive)
         {
             if (PcText.Text.Length > 0 && !char.IsWhiteSpace(PcText.Text[^1])) PcText.AppendText(" ");
@@ -190,6 +188,7 @@ public partial class MainWindow : Window
         var start = Math.Clamp(pcLiveCaptionStart, 0, PcText.Text.Length);
         PcText.Text = PcText.Text[..start] + text.Trim();
         PcText.CaretIndex = PcText.Text.Length;
+        if (follow) PcText.ScrollToEnd();
     }
 
     private void CommitLiveCaption(string text)
@@ -203,47 +202,9 @@ public partial class MainWindow : Window
         pcLiveCaptionActive = false;
     }
 
-    private void TextBox_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not TextBox box) return;
-        var scrollbar = FindParent<ScrollBar>(e.OriginalSource as DependencyObject);
-        if (scrollbar is not null)
-        {
-            if (IsAtBottom(box)) pinnedScrollPositions.Remove(box);
-            else pinnedScrollPositions.Add(box);
-            return;
-        }
-        pinnedScrollPositions.Add(box);
-    }
-
-    private void TextBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (sender is TextBox box) pinnedScrollPositions.Add(box);
-    }
-
-    private void TextBox_ScrollChanged(object sender, ScrollChangedEventArgs e)
-    {
-        if (sender is TextBox box && pinnedScrollPositions.Contains(box) && IsAtBottom(box))
-            pinnedScrollPositions.Remove(box);
-    }
-
-    private static T? FindParent<T>(DependencyObject? child) where T : DependencyObject
-    {
-        while (child is not null)
-        {
-            if (child is T match) return match;
-            child = System.Windows.Media.VisualTreeHelper.GetParent(child);
-        }
-        return null;
-    }
-
-    private static bool IsAtBottom(TextBox box)
-        => box.ExtentHeight <= box.ViewportHeight || box.VerticalOffset >= box.ExtentHeight - box.ViewportHeight - 1;
-
-    private static void ScrollToEndIfFollowing(TextBox box)
-    {
-        if (!pinnedScrollPositions.Contains(box)) box.ScrollToEnd();
-    }
+    private static bool IsNearBottom(TextBox box)
+        => box.ExtentHeight <= box.ViewportHeight ||
+           box.VerticalOffset >= box.ExtentHeight - box.ViewportHeight - 32;
 
     private void PcText_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -286,8 +247,9 @@ public partial class MainWindow : Window
             {
                 translatedSource = source;
                 translatedTarget = result;
+                var follow = IsNearBottom(TranslationText);
                 TranslationText.Text = translatedTarget;
-                ScrollToEndIfFollowing(TranslationText);
+                if (follow) TranslationText.ScrollToEnd();
             }
         }
         catch (OperationCanceledException) { }
@@ -430,7 +392,9 @@ public partial class MainWindow : Window
     private void DisplayAnswer(string text, int outputVersion) => UI(() =>
     {
         if (closing || outputVersion != answerOutputVersion) return;
+        var follow = IsNearBottom(AnswerText);
         AnswerText.Text = text;
+        if (follow) AnswerText.ScrollToEnd();
     });
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
