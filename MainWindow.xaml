@@ -21,7 +21,7 @@
       </StackPanel>
     </DockPanel>
     <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" Margin="0,0,6,12">
-      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="60"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <DockPanel Height="25" Margin="0"><TextBlock Text="01   PC AUDIO" DockPanel.Dock="Left" FontSize="12" FontWeight="Bold" Foreground="#8DAEFF" VerticalAlignment="Center"/><ToggleButton x:Name="PcToggle" MinWidth="42" DockPanel.Dock="Right" Click="PcToggle_Click" AutomationProperties.Name="PC captions start or stop"/>
           <Button Content="Format" MinWidth="42" DockPanel.Dock="Right" Click="Format_Click" Margin="0,0,8,0" ToolTip="Clear all PC caption text"/>
           <Button x:Name="SaveButton" Content="Save" MinWidth="42" DockPanel.Dock="Right" Click="Save_Click" Margin="0,0,8,0" ToolTip="Save caption text as a UTF-8 text file"/>
@@ -43,7 +43,8 @@
           <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Translation" Margin="0,0,8,0"/>
           <TextBlock Text="02   Translation" FontSize="13" FontWeight="Bold" Foreground="#79DDC2" VerticalAlignment="Center"/>
         </DockPanel>
-        <TextBox Grid.Row="1" x:Name="TranslationText" AutomationProperties.Name="Korean translation" Margin="0"/>
+        <TextBox Grid.Row="1" Height="60" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Translation input" Margin="0,0,0,8"/>
+        <TextBox Grid.Row="2" x:Name="TranslationText" AutomationProperties.Name="Korean translation" Margin="0"/>
       </Grid>
     </Border>
     <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Panel}" Margin="6,0,0,0" Visibility="Collapsed">
