@@ -134,9 +134,9 @@ public partial class MainWindow : Window
         if (message.StartsWith("Error:", StringComparison.Ordinal))
             UI(() => { if (isCurrent()) ShowError(message); });
     }
-    private static void Append(TextBox box, string text)
+    private void Append(TextBox box, string text)
     {
-        var follow = IsNearBottom(box);
+        var follow = IsNearBottom(box) || (ReferenceEquals(box, PcText) && box.IsKeyboardFocusWithin);
         var preserveCaret = box.IsKeyboardFocusWithin && box.CaretIndex < box.Text.Length;
         var caret = box.CaretIndex;
         var selectionStart = box.SelectionStart;
@@ -187,7 +187,7 @@ public partial class MainWindow : Window
 
     private void SetLiveCaption(string text)
     {
-        var follow = IsNearBottom(PcText);
+        var follow = IsNearBottom(PcText) || PcText.IsKeyboardFocusWithin;
         var preserveCaret = PcText.IsKeyboardFocusWithin && PcText.CaretIndex < PcText.Text.Length;
         var caret = PcText.CaretIndex;
         var selectionStart = PcText.SelectionStart;
