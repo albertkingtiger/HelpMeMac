@@ -46,6 +46,12 @@ internal static class Program
                 AssertView(source, offset, 40, 0);
                 Console.WriteLine("PASS: focused caret and scroll-up viewport survive interim corrections and final paragraphs");
 
+                var finalSnapshot = (string)typeof(MainWindow).GetField("pcFinalCaptionText", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
+                Invoke(window, "SetLiveCaption", "This preview must not be sent for translation.");
+                if ((string)typeof(MainWindow).GetField("pcFinalCaptionText", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)! != finalSnapshot)
+                    throw new Exception("An interim caption changed the finalized translation snapshot.");
+                Console.WriteLine("PASS: translation snapshot changes only after a final caption");
+
                 source.ScrollToEnd();
                 await Settle();
                 var previousExtent = source.ExtentHeight;

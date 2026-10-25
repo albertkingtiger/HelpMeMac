@@ -43,7 +43,6 @@ public partial class MainWindow : Window
     private int pcGeneration;
     private int micGeneration;
     private int translationGeneration;
-    private readonly DispatcherTimer translationTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly DispatcherTimer captionFlushTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
     private bool translationBusy;
     private bool translationUsesAudio;
@@ -53,6 +52,9 @@ public partial class MainWindow : Window
     private string micTempStrVar = "";
     private bool pcLiveCaptionActive;
     private int pcLiveCaptionStart;
+    private string pcFinalCaptionText = "";
+    private int pcCaptionCommitVersion;
+    private int translatedCaptionCommitVersion;
     private readonly DocumentTranslator documentTranslator = new();
     private int translationOutputVersion;
     private int savedCaptionLocation;
@@ -66,11 +68,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         trayAppIcon = CreateTrayAppIcon();
         trayIcon = CreateTrayIcon();
-        translationTimer.Tick += async (_, _) =>
-        {
-            translationTimer.Stop();
-            await TranslateInputAsync();
-        };
         captionFlushTimer.Tick += (_, _) => FlushCaptionBuffers();
         try
         {
@@ -228,6 +225,11 @@ public partial class MainWindow : Window
                 PcText.AppendText(" ");
             pcLiveCaptionActive = false;
         });
+        // Translation follows each finalized PC-audio caption segment. Interim
+        // Whisper previews only revise section 01 and never start translation.
+        pcFinalCaptionText = PcText.Text.Trim();
+        ++pcCaptionCommitVersion;
+        ScheduleTranslation();
     }
 
     private static void UpdateTextPreservingView(TextBox box, Action update)
@@ -267,22 +269,26 @@ public partial class MainWindow : Window
             savedCaptionLocation = 0;
             ++translationOutputVersion;
             translatedSource = translatedTarget = "";
+            pcFinalCaptionText = "";
+            ++pcCaptionCommitVersion;
+            translatedCaptionCommitVersion = pcCaptionCommitVersion;
             TranslationText.Clear();
         }
-        ScheduleTranslation();
     }
 
     private void ScheduleTranslation()
     {
         if (!closing && TranslationToggle.IsChecked == true && translation is not null &&
-            !translationBusy && !translationTimer.IsEnabled) translationTimer.Start();
+            !translationBusy && pcCaptionCommitVersion != translatedCaptionCommitVersion)
+            _ = TranslateInputAsync();
     }
 
     private async Task TranslateInputAsync()
     {
         if (closing || translationBusy || translation is null || TranslationToggle.IsChecked != true) return;
-        var source = PcText.Text.Trim();
-        if (source.Length == 0 || source == translatedSource) return;
+        var source = pcFinalCaptionText;
+        var captionVersion = pcCaptionCommitVersion;
+        if (source.Length == 0 || captionVersion == translatedCaptionCommitVersion) return;
         var generation = translationGeneration;
         var session = translation;
         var outputVersion = translationOutputVersion;
@@ -291,14 +297,12 @@ public partial class MainWindow : Window
         try
         {
             var result = await documentTranslator.TranslateAsync(source, session.TranslateAsync);
-            // Accept appends, but never apply a result for text the user has edited away.
-            var current = PcText.Text.Trim();
-            var stillValid = current == source || (current.StartsWith(source, StringComparison.Ordinal) &&
-                current.Length > source.Length && char.IsWhiteSpace(current[source.Length]));
-            if (!closing && generation == translationGeneration && outputVersion == translationOutputVersion && TranslationToggle.IsChecked == true && stillValid)
+            if (!closing && generation == translationGeneration && outputVersion == translationOutputVersion &&
+                TranslationToggle.IsChecked == true && captionVersion == pcCaptionCommitVersion)
             {
                 translatedSource = source;
                 translatedTarget = result;
+                translatedCaptionCommitVersion = captionVersion;
                 UpdateTextPreservingView(TranslationText, () => TranslationText.Text = translatedTarget);
             }
         }
@@ -311,7 +315,7 @@ public partial class MainWindow : Window
         finally
         {
             translationBusy = false;
-            if (retry && !closing && PcText.Text.Trim() != translatedSource) ScheduleTranslation();
+            if (retry && !closing && pcCaptionCommitVersion != translatedCaptionCommitVersion) ScheduleTranslation();
         }
     }
 
@@ -320,6 +324,9 @@ public partial class MainWindow : Window
         pcTempStrVar = "";
         pcLiveCaptionActive = false;
         PcText.Clear();
+        pcFinalCaptionText = "";
+        ++pcCaptionCommitVersion;
+        translatedCaptionCommitVersion = pcCaptionCommitVersion;
         translatedSource = translatedTarget = "";
         documentTranslator.Clear();
     }
@@ -328,6 +335,7 @@ public partial class MainWindow : Window
     {
         ++translationOutputVersion;
         translatedSource = PcText.Text.Trim();
+        translatedCaptionCommitVersion = pcCaptionCommitVersion;
         translatedTarget = "";
         documentTranslator.Clear();
         TranslationText.Clear();
@@ -649,6 +657,7 @@ public partial class MainWindow : Window
                 var generation = ++translationGeneration;
                 translatedSource = translatedTarget = "";
                 documentTranslator.Clear();
+                if (pcFinalCaptionText.Length > 0) ++pcCaptionCommitVersion;
                 translationUsesAudio = PcToggle.IsChecked != true;
                 try
                 {
@@ -671,7 +680,6 @@ public partial class MainWindow : Window
             {
                 ++translationGeneration;
                 translationUsesAudio = false;
-                translationTimer.Stop();
                 if (translation is not null) { await translation.DisposeAsync(); translation = null; }
                 await UpdatePcAsync();
             }
@@ -737,7 +745,6 @@ public partial class MainWindow : Window
         if (closing) return;
         closing = true; IsEnabled = false;
         answerCancellation?.Cancel();
-        translationTimer.Stop();
         await changes.WaitAsync();
         try
         {
