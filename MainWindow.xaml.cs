@@ -297,8 +297,14 @@ public partial class MainWindow : Window
         try
         {
             var result = await documentTranslator.TranslateAsync(source, session.TranslateAsync);
+            // Show completed work even if another final caption arrived during
+            // inference. Discarding every older result can starve the display
+            // during continuous speech; the newer snapshot is processed next.
+            var current = pcFinalCaptionText;
+            var stillValid = current == source || (current.StartsWith(source, StringComparison.Ordinal) &&
+                current.Length > source.Length && char.IsWhiteSpace(current[source.Length]));
             if (!closing && generation == translationGeneration && outputVersion == translationOutputVersion &&
-                TranslationToggle.IsChecked == true && captionVersion == pcCaptionCommitVersion)
+                TranslationToggle.IsChecked == true && stillValid)
             {
                 translatedSource = source;
                 translatedTarget = result;
