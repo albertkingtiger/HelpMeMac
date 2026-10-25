@@ -1,5 +1,17 @@
 using HelpMe.Services;
 
+Check(CaptionTextCleaner.Clean("(gentle music) [MUSIC PLAYING] [MUSIC PLAYING] [MUSIC PLAYING] ,") == "",
+    "Music-only captions must be ignored.");
+Check(CaptionTextCleaner.Clean("[MUSIC PLAYING], Hello (applause), everyone.") == "Hello, everyone.",
+    "Speech must survive removal of inline cues and their stray punctuation.");
+Check(CaptionTextCleaner.Clean("Hello, everyone. Please continue.") == "Hello, everyone. Please continue.",
+    "Ordinary spoken captions must be retained.");
+Check(CaptionTextCleaner.Clean(".NET is useful.") == ".NET is useful.",
+    "A spoken sentence beginning with punctuation must be retained.");
+Check(CaptionTextCleaner.Clean("[BLANK_AUDIO] (speaking in foreign language)") == "",
+    "Whisper metadata must not appear as speech.");
+Console.WriteLine("PASS: non-speech caption cues are removed before display");
+
 static void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);

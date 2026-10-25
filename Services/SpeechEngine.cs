@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text.RegularExpressions;
 using Whisper.net;
 
 namespace HelpMe.Services;
@@ -43,11 +42,7 @@ public sealed class SpeechEngine(AppSettings settings) : IDisposable
             var parts = new List<string>();
             await foreach (var segment in processor.ProcessAsync(samples, token))
             {
-                var text = segment.Text.Replace("[BLANK_AUDIO]", "", StringComparison.OrdinalIgnoreCase);
-                // Whisper can emit this metadata-like hallucination during silence or
-                // when it is uncertain about the language. It is not useful caption text.
-                text = Regex.Replace(text, @"\(?\s*speaking\s+in\s+(?:a\s+)?foreign\s+language\s*\)?", "", RegexOptions.IgnoreCase);
-                text = Regex.Replace(text, @"\s+", " ").Trim();
+                var text = CaptionTextCleaner.Clean(segment.Text);
                 if (text.Length > 0) parts.Add(text);
             }
             return string.Join(" ", parts);

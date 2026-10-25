@@ -5,5 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-  <ItemGroup><Compile Include="../../Services/DocumentTranslator.cs" Link="DocumentTranslator.cs" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../Services/DocumentTranslator.cs" Link="DocumentTranslator.cs" />
+    <Compile Include="../../Services/CaptionTextCleaner.cs" Link="CaptionTextCleaner.cs" />
+  </ItemGroup>
 </Project>
