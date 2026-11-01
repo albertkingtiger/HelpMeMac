@@ -100,6 +100,32 @@ internal static class Program
                 if (Answer() != "Next answer") throw new Exception("The current request's reply must land.");
                 Console.WriteLine("PASS: a superseded reply is discarded and the current one lands");
 
+                // One request at a time, but it can be abandoned: while a reply
+                // is being read, Send becomes Stop and cancels it.
+                var sendButton = (Button)window.FindName("AnswerSendButton");
+                var cancellation = typeof(MainWindow).GetField("answerCancellation", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var stopped = typeof(MainWindow).GetField("answerStopped", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var activeAuto = typeof(MainWindow).GetField("autoSendActive", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var sendClick = typeof(MainWindow).GetMethod("AnswerSend_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                using (var pending = new CancellationTokenSource())
+                {
+                    cancellation.SetValue(window, pending);
+                    activeAuto.SetValue(window, true);
+                    sendButton.Content = "Stop";
+                    sendClick.Invoke(window, new object?[] { sendButton, new RoutedEventArgs() });
+                    if (!pending.IsCancellationRequested)
+                        throw new Exception("Stop must cancel the reply being read.");
+                    if (stopped.GetValue(window) is not true)
+                        throw new Exception("A stopped request must be remembered, so it is not reported as a timeout.");
+                    if (activeAuto.GetValue(window) is not false)
+                        throw new Exception("Stopping must keep the rest of that answer out of the chat.");
+                }
+                cancellation.SetValue(window, null);
+                activeAuto.SetValue(window, false);
+                stopped.SetValue(window, false);
+                sendButton.Content = "Send";
+                Console.WriteLine("PASS: Stop cancels the reply being read and holds back the rest of it");
+
                 // Collapsing must free the section's space, keep its header as the
                 // way back, and survive a round trip to the user's dragged sizes.
                 var translationToggle = (ToggleButton)window.FindName("TranslationCollapseToggle");

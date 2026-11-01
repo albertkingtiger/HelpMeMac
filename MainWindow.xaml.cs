@@ -65,6 +65,9 @@ public partial class MainWindow : Window
     private int savedCaptionLocation;
     private bool hasSavedCaptionLocation;
     private CancellationTokenSource? answerCancellation;
+    private bool answerStopped;
+    private const string SendLabel = "Send";
+    private const string StopLabel = "Stop";
     private int answerOutputVersion;
     private string answerText = "";
     private KeyGesture sendShortcut = new(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
@@ -1028,7 +1031,7 @@ public partial class MainWindow : Window
         }
         var label = new KeyGestureConverter().ConvertToInvariantString(sendShortcut) ?? "Ctrl+Shift+Z";
         SendShortcutHint.Text = $"{label}  Send";
-        AnswerSendButton.ToolTip = $"Send captions ({label})";
+        if (answerCancellation is null) AnswerSendButton.ToolTip = $"Send captions ({label})";
         try
         {
             telegramShortcut = new KeyGestureConverter().ConvertFromInvariantString(settings.TelegramShortcut) as KeyGesture
@@ -1057,7 +1060,19 @@ public partial class MainWindow : Window
             $"Send the whole AI answer to {settings.MessengerTarget}, ignoring any selection ({allLabel})";
     }
 
-    private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
+    private async void AnswerSend_Click(object sender, RoutedEventArgs e)
+    {
+        if (answerCancellation is { } running)
+        {
+            answerStopped = true;
+            // Nothing more from this answer should reach the chat.
+            autoSendActive = false;
+            UpdateAutoSendHint();
+            running.Cancel();
+            return;
+        }
+        await SendAnswerAsync();
+    }
     private void MoveCaptionCaretToEnd()
     {
         savedCaptionLocation = PcText.Text.Length;
@@ -1085,7 +1100,9 @@ public partial class MainWindow : Window
         MoveCaptionCaretToEnd();
         using var cancellation = new CancellationTokenSource();
         answerCancellation = cancellation;
-        AnswerSendButton.IsEnabled = false;
+        answerStopped = false;
+        AnswerSendButton.Content = StopLabel;
+        AnswerSendButton.ToolTip = "Stop reading this reply. The AI keeps writing it on the page.";
         var outputVersion = ++answerOutputVersion;
         var provider = settings.AiProvider;
         Status.Visibility = Visibility.Collapsed;
@@ -1110,9 +1127,23 @@ public partial class MainWindow : Window
                 await PumpAutoSendAsync(outputVersion);
             }
         }
-        catch (OperationCanceledException) { if (!closing) ShowError("AI request timed out or was cancelled. Check Chrome for the reply or a sign-in/usage-limit message."); }
+        catch (OperationCanceledException)
+        {
+            // Stopping is a decision, not a failure: the page keeps the reply
+            // and whatever was read is still there to send by hand.
+            if (!closing && !answerStopped)
+                ShowError("The AI request timed out. Check the page in panel 05 for the reply or a sign-in or usage-limit message.");
+        }
         catch (Exception error) { if (!closing) ShowError(error.Message); }
-        finally { answerCancellation = null; if (!closing) AnswerSendButton.IsEnabled = true; }
+        finally
+        {
+            answerCancellation = null;
+            if (!closing)
+            {
+                AnswerSendButton.Content = SendLabel;
+                ApplySendShortcut();
+            }
+        }
     }
     private void DisplayAnswer(string text, int outputVersion) => UI(() =>
     {
