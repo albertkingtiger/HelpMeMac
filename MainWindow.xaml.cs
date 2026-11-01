@@ -81,7 +81,7 @@ public partial class MainWindow : Window
     private int autoSendSentences;
     private int autoSendMessages;
     // Marks where one answer ends and the next begins in the chat.
-    private const string AutoSendSeparator = "------------------------------";
+    private const string AutoSendSeparator = "--------------------------------------------------";
     private bool startedInTray;
     private EventWaitHandle? showRequest;
     private RegisteredWaitHandle? showRequestWait;
