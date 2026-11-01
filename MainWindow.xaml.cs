@@ -34,7 +34,6 @@ public partial class MainWindow : Window
     private ICaptionSession? pc;
     private AudioSession? mic;
     private TranslationSession? translation;
-    private ChromeDebugSession? chrome;
     private WebViewBrowserSession? webViews;
     private bool primingPanels;
     private bool shownWhilePriming;
@@ -80,6 +79,9 @@ public partial class MainWindow : Window
     private bool autoSendFinal;
     private bool autoSendFailed;
     private int autoSendSentences;
+    private int autoSendMessages;
+    // Marks where one answer ends and the next begins in the chat.
+    private const string AutoSendSeparator = "------------------------------";
     private bool startedInTray;
     private EventWaitHandle? showRequest;
     private RegisteredWaitHandle? showRequestWait;
@@ -139,7 +141,7 @@ public partial class MainWindow : Window
             ApplyAnswerCollapsed();
             AiPanelCollapseToggle.IsChecked = settings.AiPanelCollapsed;
             ChatPanelCollapseToggle.IsChecked = settings.ChatPanelCollapsed;
-            ApplyBrowserEngine();
+            ApplyBrowserPanels();
             SourceInitialized += (_, _) =>
             {
                 hotkeySource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
@@ -163,16 +165,8 @@ public partial class MainWindow : Window
         }
     }
 
-    // The two engines hold the same signed-in sessions, so only one of them
-    // runs: choosing the built-in panels closes the Chrome window.
     private async Task StartBrowserAsync()
     {
-        if (settings.BrowserEngine == BrowserEngine.Chrome)
-        {
-            if (chrome is null && !closing) await StartChromeAsync();
-            return;
-        }
-        await CloseChromeForPanelsAsync();
         if (closing) return;
         webViews ??= new WebViewBrowserSession(AiWebView, ChatWebView);
         try { await WhileOnScreenAsync(() => webViews.StartAsync(settings.AiProvider, settings.MessengerTarget)); }
@@ -222,30 +216,6 @@ public partial class MainWindow : Window
         var work = SystemParameters.WorkArea;
         Left = work.Left + Math.Max(0, (work.Width - Width) / 2);
         Top = work.Top + Math.Max(0, (work.Height - Height) / 2);
-    }
-
-    // Closes the managed Chrome window whether this run started it or an earlier
-    // one left it open on the debugging port.
-    private async Task CloseChromeForPanelsAsync()
-    {
-        if (chrome is not null) { await chrome.CloseAsync(); chrome = null; return; }
-        if (!await ChromeDebugSession.IsDebugEndpointAvailableAsync(settings.ChromeDebugPort)) return;
-        var running = new ChromeDebugSession(settings.ChromeDebugPort);
-        await running.CloseAsync();
-    }
-
-    private async Task StartChromeAsync()
-    {
-        try
-        {
-            chrome = new ChromeDebugSession(settings.ChromeDebugPort);
-            await chrome.StartAsync();
-        }
-        catch (Exception error)
-        {
-            chrome = null;
-            if (!closing) ShowError(error.Message);
-        }
     }
 
     private (ToggleButton, ToggleButton, ToggleButton, ToggleButton, Button, Button,
@@ -517,16 +487,12 @@ public partial class MainWindow : Window
                 AiPanelCollapseToggle.IsChecked == true, ChatPanelCollapseToggle.IsChecked == true);
     }
 
-    // Null while a browser is ready to take a message, otherwise what to tell the
-    // user about the engine they actually chose.
-    private string? BrowserUnavailable => settings.BrowserEngine == BrowserEngine.WebView2
-        ? webViews?.IsReady == true ? null : "The built-in browser panels are not ready yet."
-        : chrome is not null ? null : "Chrome debug session is not available.";
+    // Null while the panels can take a message, otherwise what to tell the user.
+    private string? BrowserUnavailable =>
+        webViews?.IsReady == true ? null : "The browser panels are not ready yet.";
 
     private Task<string> BrowserSendAsync(string text, string provider, Action<string>? progress, CancellationToken token)
-        => settings.BrowserEngine == BrowserEngine.WebView2
-            ? webViews!.SendPromptAsync(text, provider, progress, token)
-            : chrome!.SendPromptAsync(text, provider, progress, token);
+        => webViews!.SendPromptAsync(text, provider, progress, token);
 
     private void AiPanelCollapse_Click(object sender, RoutedEventArgs e)
     {
@@ -543,37 +509,15 @@ public partial class MainWindow : Window
     private void BrowserReload_Click(object sender, RoutedEventArgs e)
         => webViews?.Reload(((Button)sender).Tag as string == "Ai");
 
-    // The whole browser column belongs to the built-in engine: with Chrome
-    // selected the pages live in its own window and the column is not shown.
-    private void ApplyBrowserEngine()
+    // Panels 05 and 06 name the pages they carry, so the headers say which
+    // assistant answered and where the answer is being sent.
+    private void ApplyBrowserPanels()
     {
-        var panels = settings.BrowserEngine == BrowserEngine.WebView2;
-        BrowserPanels.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
-        BrowserSplitter.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
-        AiPanel.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
-        if (panels)
-        {
-            BrowserColumn.Width = browserColumnWidth;
-            BrowserSplitterColumn.Width = new GridLength(5);
-            ApplyAiPanelCollapsed();
-            ApplyChatPanelCollapsed();
-            // Three columns need the room; a window left at the two-column width
-            // would squeeze the web pages into a strip.
-            if (Width < 1300) Width = 1300;
-        }
-        else
-        {
-            if (BrowserColumn.Width.IsStar) browserColumnWidth = BrowserColumn.Width;
-            if (AiPanelRow.Height.IsStar) aiPanelRowHeight = AiPanelRow.Height;
-            BrowserColumn.Width = new GridLength(0);
-            BrowserSplitterColumn.Width = new GridLength(0);
-            // Panel 05 shares the middle column with 04, so its row has to go
-            // back as well or the answer keeps only half the height.
-            AiPanelRow.Height = new GridLength(0);
-            AiPanelSplitterRow.Height = new GridLength(0);
-            AiPanelSplitter.Visibility = Visibility.Collapsed;
-            ApplyAnswerColumnWidth();
-        }
+        ApplyAiPanelCollapsed();
+        ApplyChatPanelCollapsed();
+        // Three columns need the room; a window left at the old two-column width
+        // would squeeze the web pages into a strip.
+        if (Width < 1300) Width = 1300;
         AiPanelTitle.Text = $"05  {settings.AiProvider.ToUpperInvariant()}";
         ChatPanelTitle.Text = $"06  {settings.MessengerTarget.ToUpperInvariant()}";
     }
@@ -666,7 +610,7 @@ public partial class MainWindow : Window
     // back to the rest of the window once neither of them has anything to show.
     private void ApplyAnswerColumnWidth()
     {
-        var aiShowing = settings.BrowserEngine == BrowserEngine.WebView2 && AiPanelCollapseToggle.IsChecked != true;
+        var aiShowing = AiPanelCollapseToggle.IsChecked != true;
         var answerShowing = AnswerCollapseToggle.IsChecked != true;
         if (answerShowing || aiShowing)
         {
@@ -1025,15 +969,20 @@ public partial class MainWindow : Window
                 // A button press owns the tab until it finishes.
                 if (telegramSending) { await Task.Delay(200); continue; }
                 var sentences = autoSendSentences;
+                // The opening chunk is small so the reader sees something while
+                // the answer is still being written; the rest come in larger.
+                var target = autoSendMessages == 0 ? settings.AutoSendFirstChars : settings.AutoSendNextChars;
                 var chunk = autoSendFinal
                     ? AnswerChunker.RemainingChunk(AnswerText.Text, sentences, out sentences)
-                    : AnswerChunker.NextChunk(AnswerText.Text, sentences, settings.AutoSendSentences, out sentences);
+                    : AnswerChunker.NextChunk(AnswerText.Text, sentences, target, out sentences);
                 if (chunk is null) return;
+                if (autoSendMessages == 0) chunk = AutoSendSeparator + "\n" + chunk;
                 autoSendSentences = sentences;
                 telegramSending = true;
                 string? failure;
                 try { failure = await DeliverToMessengerAsync(chunk); }
                 finally { telegramSending = false; }
+                if (failure is null) autoSendMessages++;
                 if (failure is not null)
                 {
                     // Carrying on would leave holes in what the reader receives.
@@ -1064,7 +1013,8 @@ public partial class MainWindow : Window
         // The hint keeps the box in step with the setting, so only a real change
         // of mind re-anchors a run that is already under way.
         var changed = enabled != settings.AutoSendAnswer;
-        if (initialized && changed) settings.SaveAutoSend(enabled, settings.AutoSendSentences);
+        if (initialized && changed)
+            settings.SaveAutoSend(enabled, settings.AutoSendFirstChars, settings.AutoSendNextChars);
         if (!enabled) autoSendActive = false;
         else if (changed && answerCancellation is not null)
         {
@@ -1073,6 +1023,9 @@ public partial class MainWindow : Window
             autoSendSentences = AnswerChunker.SentenceCount(AnswerText.Text);
             autoSendActive = true;
             autoSendFailed = false;
+            // Its first message still opens with the separator and the small
+            // size, so the reader sees where this answer started.
+            autoSendMessages = 0;
         }
         UpdateAutoSendHint();
     }
@@ -1088,11 +1041,12 @@ public partial class MainWindow : Window
         AutoSendHint.Visibility = Visibility.Visible;
         // A run that was stopped by a refusal says so, so the count on the bar is
         // never read as "all of it went out".
-        AutoSendHint.Text = autoSendFailed ? $"stopped · {autoSendSentences} sent"
-            : autoSendSentences > 0 ? $"{autoSendSentences} sent"
-            : $"every {settings.AutoSendSentences}";
+        AutoSendHint.Text = autoSendFailed ? $"stopped · {autoSendMessages} sent"
+            : autoSendMessages > 0 ? $"{autoSendMessages} sent"
+            : $"{settings.AutoSendFirstChars} then {settings.AutoSendNextChars}";
         AutoSendHint.ToolTip =
-            $"The answer goes to {settings.MessengerTarget} in pieces of {settings.AutoSendSentences} sentences";
+            $"The answer goes to {settings.MessengerTarget} as it is written: about {settings.AutoSendFirstChars} " +
+            $"characters first, then about {settings.AutoSendNextChars} at a time, in whole sentences";
     }
 
     private async Task RestoreTelegramButtonAsync(Button button, string restingLabel)
@@ -1112,9 +1066,6 @@ public partial class MainWindow : Window
         else if (key is Key.D5 or Key.NumPad5) section = AiPanelCollapseToggle;
         else if (key is Key.D6 or Key.NumPad6) section = ChatPanelCollapseToggle;
         else return false;
-        // The browser panels only exist for the built-in engine.
-        if (section != TranslationCollapseToggle && section != AnswerCollapseToggle &&
-            settings.BrowserEngine != BrowserEngine.WebView2) return false;
         section.IsChecked = section.IsChecked != true;
         if (section == TranslationCollapseToggle) ApplyTranslationCollapsed();
         else if (section == AnswerCollapseToggle) ApplyAnswerCollapsed();
@@ -1178,6 +1129,7 @@ public partial class MainWindow : Window
         autoSendActive = false;
         autoSendFailed = false;
         autoSendSentences = 0;
+        autoSendMessages = 0;
         UpdateAutoSendHint();
     }
     private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
@@ -1220,6 +1172,7 @@ public partial class MainWindow : Window
         autoSendFinal = false;
         autoSendFailed = false;
         autoSendSentences = 0;
+        autoSendMessages = 0;
         UpdateAutoSendHint();
         try
         {
@@ -1318,20 +1271,6 @@ public partial class MainWindow : Window
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(settings) { Owner = this };
-        dialog.OpenChromeAsync = async port =>
-        {
-            if (chrome is not null) { await chrome.DisposeAsync(); chrome = null; }
-            // Use the port shown in the dialog so the button matches what the
-            // user just typed, without committing it until they press Save.
-            chrome = new ChromeDebugSession(port);
-            try { await chrome.StartAsync(); }
-            catch { chrome = null; throw; }
-        };
-        dialog.CloseChromeAsync = async () =>
-        {
-            answerCancellation?.Cancel();
-            if (chrome is not null) { await chrome.CloseAsync(); chrome = null; }
-        };
         if (dialog.ShowDialog() != true)
         {
             AppTheme.Apply(settings.Theme);
@@ -1339,19 +1278,15 @@ public partial class MainWindow : Window
         }
         await ChangeAsync(async () =>
         {
-            var previousPort = settings.ChromeDebugPort;
-            var previousEngine = settings.BrowserEngine;
             var previousProvider = settings.AiProvider;
             var previousMessenger = settings.MessengerTarget;
-            settings.SaveBrowserEngine(dialog.SelectedBrowserEngine);
-            settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
             settings.SaveSendShortcut(dialog.SendShortcut);
             settings.SaveTelegramShortcut(dialog.TelegramShortcut);
             settings.SaveTelegramAllShortcut(dialog.TelegramAllShortcut);
             settings.SaveMessengerTarget(dialog.MessengerTarget);
             // The toggle lives on the panel 04 bar; Settings only sets the size.
-            settings.SaveAutoSend(settings.AutoSendAnswer, dialog.AutoSendSentences);
+            settings.SaveAutoSend(settings.AutoSendAnswer, dialog.AutoSendFirstChars, dialog.AutoSendNextChars);
             if (dialog.StartWithWindows != settings.StartWithWindows)
             {
                 var startupError = StartupRegistration.Apply(dialog.StartWithWindows);
@@ -1389,22 +1324,8 @@ public partial class MainWindow : Window
                 if (pc is not null) { ++pcGeneration; await pc.DisposeAsync(); pc = null; }
                 await UpdatePcAsync();
             }
-            ApplyBrowserEngine();
-            if (previousEngine != settings.BrowserEngine)
-            {
-                answerCancellation?.Cancel();
-                // Switching either way starts the chosen engine; the panels keep
-                // their pages loaded but take no message while Chrome is chosen.
-                await StartBrowserAsync();
-            }
-            else if (settings.BrowserEngine == BrowserEngine.Chrome && previousPort != dialog.ChromeDebugPort)
-            {
-                answerCancellation?.Cancel();
-                if (chrome is not null) { await chrome.DisposeAsync(); chrome = null; }
-                await StartChromeAsync();
-            }
-            else if (settings.BrowserEngine == BrowserEngine.WebView2 &&
-                     (previousProvider != settings.AiProvider || previousMessenger != settings.MessengerTarget))
+            ApplyBrowserPanels();
+            if (previousProvider != settings.AiProvider || previousMessenger != settings.MessengerTarget)
             {
                 // Only the panel whose page actually changed is reloaded.
                 webViews?.Navigate(settings.AiProvider, settings.MessengerTarget);
@@ -1541,7 +1462,6 @@ public partial class MainWindow : Window
             if (pc is not null) await pc.DisposeAsync();
             if (mic is not null) await mic.DisposeAsync();
             if (translation is not null) await translation.DisposeAsync();
-            if (chrome is not null) await chrome.DisposeAsync();
             if (initialized) engine.Dispose();
         }
         finally

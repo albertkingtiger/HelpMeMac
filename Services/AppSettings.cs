@@ -7,14 +7,12 @@ namespace HelpMe.Services;
 public sealed class AppSettings
 {
     public CaptionMethod CaptionMethod { get; set; } = CaptionMethod.Whisper;
-    public BrowserEngine BrowserEngine { get; set; } = BrowserEngine.WebView2;
     public string WhisperModelPath { get; set; } = "models/ggml-base.en-q8_0.bin";
     public string TranslationModelPath { get; set; } = "models/nllb-200-distilled-600M-int8";
     public string PythonPath { get; set; } = ".venv/Scripts/python.exe";
     public double SpeechThreshold { get; set; } = 0.008;
     public double MaxSegmentSeconds { get; set; } = 6;
     public double SilenceSeconds { get; set; } = 0.7;
-    public int ChromeDebugPort { get; set; } = 9111;
     public string AiProvider { get; set; } = "ChatGPT";
     public string AiProject { get; set; } = "";
     public string AiSession { get; set; } = "";
@@ -24,7 +22,8 @@ public sealed class AppSettings
     public string TelegramAllShortcut { get; set; } = "Ctrl+Shift+A";
     public string MessengerTarget { get; set; } = "Telegram";
     public bool AutoSendAnswer { get; set; }
-    public int AutoSendSentences { get; set; } = 2;
+    public int AutoSendFirstChars { get; set; } = 100;
+    public int AutoSendNextChars { get; set; } = 500;
     public string Theme { get; set; } = "Dark";
     public bool StartWithWindows { get; set; } = true;
     public bool TranslationCollapsed { get; set; }
@@ -69,7 +68,6 @@ public sealed class AppSettings
                 var saved = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(preferencesPath));
                 if (saved is not null)
                 {
-                    result.ChromeDebugPort = saved.ChromeDebugPort;
                     result.AiProvider = saved.AiProvider is "ChatGPT" or "Claude" or "Telegram" ? saved.AiProvider : result.AiProvider;
                     result.AiProject = saved.AiProject ?? "";
                     result.AiSession = saved.AiSession ?? "";
@@ -79,7 +77,8 @@ public sealed class AppSettings
                     if (!string.IsNullOrWhiteSpace(saved.TelegramAllShortcut)) result.TelegramAllShortcut = saved.TelegramAllShortcut;
                     result.MessengerTarget = Messenger.Find(saved.MessengerTarget)?.Name ?? result.MessengerTarget;
                     result.AutoSendAnswer = saved.AutoSendAnswer;
-                    if (IsSentenceCount(saved.AutoSendSentences)) result.AutoSendSentences = saved.AutoSendSentences;
+                    if (IsChunkSize(saved.AutoSendFirstChars)) result.AutoSendFirstChars = saved.AutoSendFirstChars;
+                    if (IsChunkSize(saved.AutoSendNextChars)) result.AutoSendNextChars = saved.AutoSendNextChars;
                     result.Theme = saved.Theme is "Light" or "Dark" ? saved.Theme : "Dark";
                     result.StartWithWindows = saved.StartWithWindows;
                     result.TranslationCollapsed = saved.TranslationCollapsed;
@@ -87,7 +86,6 @@ public sealed class AppSettings
                     result.AiPanelCollapsed = saved.AiPanelCollapsed;
                     result.ChatPanelCollapsed = saved.ChatPanelCollapsed;
                     result.CaptionMethod = saved.CaptionMethod is CaptionMethod.WindowsLiveCaptions ? saved.CaptionMethod : CaptionMethod.Whisper;
-                    result.BrowserEngine = saved.BrowserEngine is BrowserEngine.Chrome ? BrowserEngine.Chrome : BrowserEngine.WebView2;
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
@@ -111,16 +109,6 @@ public sealed class AppSettings
     {
         if (!Enum.IsDefined(method)) throw new ArgumentOutOfRangeException(nameof(method));
         CaptionMethod = method; SavePreferences();
-    }
-    public void SaveBrowserEngine(BrowserEngine engine)
-    {
-        if (!Enum.IsDefined(engine)) throw new ArgumentOutOfRangeException(nameof(engine));
-        BrowserEngine = engine; SavePreferences();
-    }
-    public void SaveChromeDebugPort(int port)
-    {
-        if (port is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
-        ChromeDebugPort = port; SavePreferences();
     }
     public void SaveAiPreferences(string provider, string project, string session)
     {
@@ -156,12 +144,13 @@ public sealed class AppSettings
         MessengerTarget = Messenger.Find(target)?.Name ?? throw new ArgumentOutOfRangeException(nameof(target));
         SavePreferences();
     }
-    public void SaveAutoSend(bool enabled, int sentencesPerMessage)
+    public void SaveAutoSend(bool enabled, int firstChars, int nextChars)
     {
-        if (!IsSentenceCount(sentencesPerMessage))
-            throw new ArgumentOutOfRangeException(nameof(sentencesPerMessage), "Auto-send must use 1 to 10 sentences.");
+        if (!IsChunkSize(firstChars) || !IsChunkSize(nextChars))
+            throw new ArgumentOutOfRangeException(nameof(firstChars), "Auto-send sizes must be 20 to 4000 characters.");
         AutoSendAnswer = enabled;
-        AutoSendSentences = sentencesPerMessage;
+        AutoSendFirstChars = firstChars;
+        AutoSendNextChars = nextChars;
         SavePreferences();
     }
     public void SaveTheme(string theme)
@@ -211,11 +200,11 @@ public sealed class AppSettings
     }
     private void SavePreferences()
     {
-        var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
+        var json = JsonSerializer.Serialize(new Preferences(AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
             AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut, Theme, CaptionMethod, RestoreShortcut,
             StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
-            AutoSendAnswer, AutoSendSentences, BrowserEngine, AiPanelCollapsed, ChatPanelCollapsed),
+            AutoSendAnswer, AutoSendFirstChars, AutoSendNextChars, AiPanelCollapsed, ChatPanelCollapsed),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -229,13 +218,15 @@ public sealed class AppSettings
     }
     private static void Validate(AppSettings result)
     {
-        if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 0.75 or > 15 || result.SilenceSeconds is < 0.1 or > 3 || result.ChromeDebugPort is < 1024 or > 65535)
+        if (result.SpeechThreshold is <= 0 or > 1 || result.MaxSegmentSeconds is < 0.75 or > 15 || result.SilenceSeconds is < 0.1 or > 3)
             throw new InvalidDataException("Audio thresholds in appsettings.json are out of range.");
     }
     private static bool IsFontSize(double value) => value is >= 8 and <= 48;
-    public static bool IsSentenceCount(int value) => value is >= 1 and <= 10;
+    // Telegram and WhatsApp both refuse a message of more than about 4000
+    // characters, so a chunk size above that could never be delivered.
+    public static bool IsChunkSize(int value) => value is >= 20 and <= 4000;
     private static bool IsColor(string? value) => value is not null && Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$", RegexOptions.CultureInvariant);
-    private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession,
+    private sealed record Preferences(string AiProvider, string AiProject, string AiSession,
         double WindowWidth = 1060, double WindowHeight = 860,
         double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
         double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
@@ -245,8 +236,7 @@ public sealed class AppSettings
         string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
         bool TranslationCollapsed = false, bool AnswerCollapsed = false,
         string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram",
-        bool AutoSendAnswer = false, int AutoSendSentences = 2,
-        BrowserEngine BrowserEngine = BrowserEngine.WebView2,
+        bool AutoSendAnswer = false, int AutoSendFirstChars = 100, int AutoSendNextChars = 500,
         bool AiPanelCollapsed = false, bool ChatPanelCollapsed = false);
     public static string Resolve(string path)
     {

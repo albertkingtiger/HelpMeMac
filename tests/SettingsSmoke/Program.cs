@@ -29,10 +29,9 @@ finally { File.Delete(localAsset); }
 var oldPreferences = File.Exists(preferencePath) ? File.ReadAllBytes(preferencePath) : null;
 try
 {
-    settings.SaveChromeDebugPort(9227);
     settings.SaveAiPreferences("Claude", "Work", "Meeting");
     var aiSettings = AppSettings.Load(preferencePath);
-    if (aiSettings.ChromeDebugPort != 9227 || aiSettings.AiProvider != "Claude" ||
+    if (aiSettings.AiProvider != "Claude" ||
         aiSettings.AiProject != "Work" || aiSettings.AiSession != "Meeting")
         throw new Exception("AI settings did not round-trip through JSON preferences.");
     settings.SaveAiPreferences("ChatGPT", "", "");
@@ -65,18 +64,23 @@ try
         throw new Exception("Messenger choice did not round-trip through JSON preferences.");
     settings.SaveMessengerTarget("Telegram");
     Console.WriteLine("PASS: Telegram or WhatsApp destination persistence");
-    settings.SaveAutoSend(enabled: true, sentencesPerMessage: 3);
+    settings.SaveAutoSend(enabled: true, firstChars: 120, nextChars: 600);
     var autoSend = AppSettings.Load(preferencePath);
-    if (!autoSend.AutoSendAnswer || autoSend.AutoSendSentences != 3)
+    if (!autoSend.AutoSendAnswer || autoSend.AutoSendFirstChars != 120 || autoSend.AutoSendNextChars != 600)
         throw new Exception("Auto-send settings did not round-trip through JSON preferences.");
-    // Out-of-range counts are refused rather than saved and clamped later.
-    foreach (var invalid in new[] { 0, -1, 11 })
+    // Out-of-range sizes are refused rather than saved and clamped later.
+    foreach (var invalid in new[] { 0, -1, 19, 4001 })
     {
-        try { settings.SaveAutoSend(true, invalid); }
-        catch (ArgumentOutOfRangeException) { continue; }
-        throw new Exception($"Auto-send accepted {invalid} sentences per message.");
+        try { settings.SaveAutoSend(true, invalid, 500); }
+        catch (ArgumentOutOfRangeException)
+        {
+            try { settings.SaveAutoSend(true, 100, invalid); }
+            catch (ArgumentOutOfRangeException) { continue; }
+            throw new Exception($"Auto-send accepted {invalid} characters for later messages.");
+        }
+        throw new Exception($"Auto-send accepted {invalid} characters for the first message.");
     }
-    settings.SaveAutoSend(enabled: false, sentencesPerMessage: 2);
+    settings.SaveAutoSend(enabled: false, firstChars: 100, nextChars: 500);
     if (AppSettings.Load(preferencePath).AutoSendAnswer)
         throw new Exception("Auto-send did not turn back off through JSON preferences.");
     Console.WriteLine("PASS: auto-send toggle and sentence count persistence");
@@ -85,7 +89,7 @@ try
     var displaySettings = AppSettings.Load(preferencePath);
     if (displaySettings.Theme != "Light" || displaySettings.CaptionMethod != CaptionMethod.WindowsLiveCaptions)
         throw new Exception("Theme and caption source did not round-trip through JSON preferences.");
-    Console.WriteLine("PASS: AI provider, destination and port preference persistence");
+    Console.WriteLine("PASS: AI provider and destination preference persistence");
     Console.WriteLine("PASS: per-editor font and color preference persistence");
     Console.WriteLine("PASS: configurable send shortcut preference persistence");
     Console.WriteLine("PASS: configurable tray restore shortcut preference persistence");
@@ -96,21 +100,13 @@ try
     if (layout.StartWithWindows || !layout.TranslationCollapsed || layout.AnswerCollapsed)
         throw new Exception("Startup and collapsed-section settings did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: Windows startup and collapsed section persistence");
-    // The built-in panels are the default, so an older preferences file without
-    // the key must not silently fall back to Chrome.
-    if (AppSettings.Load(preferencePath).BrowserEngine != BrowserEngine.WebView2)
-        throw new Exception("The built-in browser panels must be the default engine.");
-    settings.SaveBrowserEngine(BrowserEngine.Chrome);
-    if (AppSettings.Load(preferencePath).BrowserEngine != BrowserEngine.Chrome)
-        throw new Exception("Browser engine did not round-trip through JSON preferences.");
-    settings.SaveBrowserEngine(BrowserEngine.WebView2);
     settings.SaveCollapsedSections(translationCollapsed: false, answerCollapsed: false,
         aiPanelCollapsed: true, chatPanelCollapsed: false);
     var panels = AppSettings.Load(preferencePath);
     if (!panels.AiPanelCollapsed || panels.ChatPanelCollapsed)
         throw new Exception("Panel 05 and 06 collapse states did not round-trip through JSON preferences.");
     settings.SaveCollapsedSections(false, false);
-    Console.WriteLine("PASS: browser engine and browser panel collapse persistence");
+    Console.WriteLine("PASS: browser panel collapse persistence");
 }
 finally
 {

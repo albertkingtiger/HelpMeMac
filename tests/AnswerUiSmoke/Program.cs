@@ -110,6 +110,13 @@ internal static class Program
                 var savedCollapse = (collapseSettings.TranslationCollapsed, collapseSettings.AnswerCollapsed,
                     collapseSettings.AiPanelCollapsed, collapseSettings.ChatPanelCollapsed);
                 var collapseTranslation = typeof(MainWindow).GetMethod("TranslationCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                foreach (var shown in new[] { translationToggle, answerToggle,
+                             (ToggleButton)window.FindName("AiPanelCollapseToggle"),
+                             (ToggleButton)window.FindName("ChatPanelCollapseToggle") })
+                    shown.IsChecked = false;
+                typeof(MainWindow).GetMethod("ApplyTranslationCollapsed", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                typeof(MainWindow).GetMethod("ApplyAnswerCollapsed", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+                typeof(MainWindow).GetMethod("ApplyBrowserPanels", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
                 var collapseAnswer = typeof(MainWindow).GetMethod("AnswerCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 void ClickCollapse(MethodInfo handler, ToggleButton toggle)
                 {
@@ -171,12 +178,10 @@ internal static class Program
                     throw new Exception("Only plain Ctrl+2 and Ctrl+4 may toggle a section.");
                 Console.WriteLine("PASS: Ctrl+2 and Ctrl+4 toggle their sections and ignore other combinations");
 
-                // Panels 05 and 06 hold the AI and chat pages for the built-in
-                // browser, and exist only while that engine is chosen.
+                // Panels 05 and 06 hold the AI and chat pages.
                 var engineSettings = (AppSettings)typeof(MainWindow)
                     .GetField("settings", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
-                var applyEngine = typeof(MainWindow).GetMethod("ApplyBrowserEngine", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                var browserPanels = (Grid)window.FindName("BrowserPanels");
+                var applyPanels = typeof(MainWindow).GetMethod("ApplyBrowserPanels", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var browserColumn = (ColumnDefinition)window.FindName("BrowserColumn");
                 var aiPanelRow = (RowDefinition)window.FindName("AiPanelRow");
                 var aiPanelToggle = (ToggleButton)window.FindName("AiPanelCollapseToggle");
@@ -185,11 +190,9 @@ internal static class Program
                 var chatWebView = (UIElement)window.FindName("ChatWebView");
                 var aiTitle = (TextBlock)window.FindName("AiPanelTitle");
                 var chatTitle = (TextBlock)window.FindName("ChatPanelTitle");
-                var savedEngine = engineSettings.BrowserEngine;
-                engineSettings.BrowserEngine = BrowserEngine.WebView2;
-                applyEngine.Invoke(window, null);
-                if (browserPanels.Visibility != Visibility.Visible || !browserColumn.Width.IsStar)
-                    throw new Exception("The built-in engine must show the browser column.");
+                applyPanels.Invoke(window, null);
+                if (!browserColumn.Width.IsStar)
+                    throw new Exception("The chat panel owns the right column.");
                 // Read the settings rather than set them: a collapse below saves
                 // preferences, which would write a test value to the real file.
                 if (aiTitle.Text != $"05  {engineSettings.AiProvider.ToUpperInvariant()}" ||
@@ -202,27 +205,14 @@ internal static class Program
                     aiWebView.Visibility != Visibility.Visible || !aiPanelRow.Height.IsStar)
                     throw new Exception("Ctrl+5 must restore panel 05 and the height it had.");
                 if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != true ||
-                    chatWebView.Visibility != Visibility.Collapsed)
-                    throw new Exception("Ctrl+6 must collapse panel 06.");
-                if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != false)
-                    throw new Exception("Ctrl+6 must expand panel 06 again.");
-                // With Chrome chosen the pages live in its own window, so the
-                // column and its shortcuts have nothing to act on.
-                engineSettings.BrowserEngine = BrowserEngine.Chrome;
-                applyEngine.Invoke(window, null);
-                if (browserPanels.Visibility != Visibility.Collapsed || browserColumn.Width.Value != 0)
-                    throw new Exception("Choosing Chrome must give the browser column's width back.");
-                if (Press(Key.D5, ModifierKeys.Control) || Press(Key.D6, ModifierKeys.Control))
-                    throw new Exception("Ctrl+5 and Ctrl+6 must do nothing while Chrome is the browser.");
-                engineSettings.BrowserEngine = BrowserEngine.WebView2;
-                applyEngine.Invoke(window, null);
-                if (!browserColumn.Width.IsStar)
-                    throw new Exception("Switching back must restore the browser column's width.");
-                engineSettings.BrowserEngine = savedEngine;
-                applyEngine.Invoke(window, null);
+                    chatWebView.Visibility != Visibility.Collapsed || browserColumn.Width != GridLength.Auto)
+                    throw new Exception("Ctrl+6 must collapse panel 06 and release its column.");
+                if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != false ||
+                    !browserColumn.Width.IsStar)
+                    throw new Exception("Ctrl+6 must expand panel 06 and take the column back.");
                 collapseSettings.SaveCollapsedSections(savedCollapse.Item1, savedCollapse.Item2,
                     savedCollapse.Item3, savedCollapse.Item4);
-                Console.WriteLine("PASS: panels 05 and 06 follow the browser engine, their titles and Ctrl+5/Ctrl+6");
+                Console.WriteLine("PASS: panels 05 and 06 carry their titles and follow Ctrl+5 and Ctrl+6");
 
                 // Send Telegram forwards the answer, or just the part selected in it.
                 var telegramMessage = typeof(MainWindow).GetMethod("GetTelegramMessage", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -259,39 +249,43 @@ internal static class Program
 
                 // Auto-send splits a reply that is still being typed, so a slow
                 // answer reaches the reader two sentences at a time.
-                string? Next(string text, int sent, int per, out int count)
-                    => AnswerChunker.NextChunk(text, sent, per, out count);
+                string? Next(string text, int sent, int target, out int count)
+                    => AnswerChunker.NextChunk(text, sent, target, out count);
                 int count;
-                if (Next("First one. Second one. And a third", 0, 2, out count) != "First one. Second one." || count != 2)
-                    throw new Exception("Two finished sentences must go out together.");
-                if (Next("First one. Second one. And a third", 2, 2, out count) is not null || count != 2)
+                // A size is a target to reach, so a chunk grows by whole
+                // sentences until it is big enough, and never cuts one short.
+                if (Next("First one. Second one. And a third", 0, 15, out count) != "First one. Second one." || count != 2)
+                    throw new Exception("A chunk must take whole sentences until it reaches the size.");
+                if (Next("First one. Second one. And a third", 0, 5, out count) != "First one." || count != 1)
+                    throw new Exception("One sentence past the size is a chunk on its own.");
+                if (Next("First one. Second one. And a third", 2, 10, out count) is not null || count != 2)
                     throw new Exception("An unfinished sentence must wait for the rest of the answer.");
-                if (Next("Only one finished. Then", 0, 2, out _) is not null)
-                    throw new Exception("A chunk needs its full count of finished sentences.");
+                if (Next("Only one finished. Then", 0, 100, out _) is not null)
+                    throw new Exception("A chunk short of the size must wait for more of the answer.");
                 // A sentence end needs more than a period: these are not ends.
-                if (Next("Dr. Smith arrived. Then", 0, 1, out _) != "Dr. Smith arrived.")
+                if (Next("Dr. Smith arrived. Then", 0, 5, out _) != "Dr. Smith arrived.")
                     throw new Exception("A title's period must not end the sentence.");
-                if (Next("We use e.g. three models. Next", 0, 1, out _) != "We use e.g. three models.")
+                if (Next("We use e.g. three models. Next", 0, 5, out _) != "We use e.g. three models.")
                     throw new Exception("An abbreviation's period must not end the sentence.");
-                if (Next("It costs 3.50 today. Next", 0, 1, out _) != "It costs 3.50 today.")
+                if (Next("It costs 3.50 today. Next", 0, 5, out _) != "It costs 3.50 today.")
                     throw new Exception("A decimal point must not end the sentence.");
-                if (Next("See fig. 2 for the shape. Next", 0, 1, out _) != "See fig. 2 for the shape.")
+                if (Next("See fig. 2 for the shape. Next", 0, 5, out _) != "See fig. 2 for the shape.")
                     throw new Exception("A lower-case continuation must not end the sentence.");
                 // Line breaks and list layout survive, because a run of sentences
                 // is taken as one slice of the original answer.
-                if (Next("Use these:\n- first thing.\n- second thing. Next", 0, 2, out _)
+                if (Next("Use these:\n- first thing.\n- second thing. Next", 0, 30, out _)
                     != "Use these:\n- first thing.\n- second thing.")
                     throw new Exception("A chunk must keep the answer's own line breaks.");
                 // Half of a code block is no use, so an open fence holds the rest back.
-                if (Next("Here it is. ```py\nvalue = 1\n", 0, 1, out _) != "Here it is.")
+                if (Next("Here it is. ```py\nvalue = 1\n", 0, 5, out _) != "Here it is.")
                     throw new Exception("Text before an unclosed fence can still be sent.");
-                if (Next("Here it is. ```py\nvalue = 1\n", 1, 1, out _) is not null)
+                if (Next("Here it is. ```py\nvalue = 1\n", 1, 5, out _) is not null)
                     throw new Exception("An unclosed code fence must hold back the rest.");
-                if (Next("Run this. ```py\nx = 1. Y = 2.\n``` Done now. Next", 1, 1, out _)
+                if (Next("Run this. ```py\nx = 1. Y = 2.\n``` Done now. Next", 1, 5, out _)
                     != "```py\nx = 1. Y = 2.\n``` Done now.")
                     throw new Exception("A finished code block must travel in one piece.");
-                if (Next("\uC548\uB155\uD558\uC138\uC694. \uBC18\uAC11\uC2B5\uB2C8\uB2E4. \uBABE", 0, 2, out _)
-                    != "\uC548\uB155\uD558\uC138\uC694. \uBC18\uAC11\uC2B5\uB2C8\uB2E4.")
+                if (Next("안녕하세요. 반갑습니다. 그리고", 0, 10, out _)
+                    != "안녕하세요. 반갑습니다.")
                     throw new Exception("Korean sentences must split on their periods too.");
                 if (AnswerChunker.SentenceCount("First one. Second one. A trailing fragment") != 2)
                     throw new Exception("Ticking auto-send mid-answer must skip the finished sentences on screen.");
@@ -306,7 +300,7 @@ internal static class Program
                 // finished answer ends at "Second one.", where the streaming
                 // rules see only one sentence. Reading it as unfinished here
                 // offers the last sentence again, and again, and again.
-                if (AnswerChunker.NextChunk("First one. Second one. And", 0, 2, out count) is null || count != 2)
+                if (AnswerChunker.NextChunk("First one. Second one. And", 0, 15, out count) is null || count != 2)
                     throw new Exception("Both sentences go out while the answer is still being written.");
                 if (AnswerChunker.RemainingChunk("First one. Second one.", 2, out count) is not null || count != 2)
                     throw new Exception("An answer already sent in full must flush nothing.");
@@ -334,23 +328,27 @@ internal static class Program
                 if (autoSendHint.Visibility != Visibility.Collapsed || autoSendCheck.IsChecked == true)
                     throw new Exception("With auto-send off, the box is clear and the hint hidden.");
                 appSettings.AutoSendAnswer = true;
-                appSettings.AutoSendSentences = 3;
+                appSettings.AutoSendFirstChars = 100;
+                appSettings.AutoSendNextChars = 500;
                 updateHint.Invoke(window, null);
-                if (autoSendHint.Visibility != Visibility.Visible || !autoSendHint.Text.Contains("every 3"))
-                    throw new Exception("With auto-send on, the hint must show the chunk size.");
+                if (autoSendHint.Visibility != Visibility.Visible || !autoSendHint.Text.Contains("100 then 500"))
+                    throw new Exception("With auto-send on, the hint must show both chunk sizes.");
                 if (autoSendCheck.IsChecked != true)
                     throw new Exception("The box must follow the saved setting.");
-                sentCount.SetValue(window, 4);
+                var messageCount = typeof(MainWindow).GetField("autoSendMessages", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                messageCount.SetValue(window, 4);
                 updateHint.Invoke(window, null);
                 if (!autoSendHint.Text.Contains("4 sent"))
                     throw new Exception("While sending, the hint must show how much has gone out.");
+                messageCount.SetValue(window, 0);
                 Console.WriteLine("PASS: the auto-send hint follows the setting and the sent count");
                 // The pump takes one chunk at a time and gives up on the first
                 // refusal: carrying on would leave holes in what the reader gets.
                 var pump = typeof(MainWindow).GetMethod("PumpAutoSendAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var active = typeof(MainWindow).GetField("autoSendActive", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var answerVersion = typeof(MainWindow).GetField("answerOutputVersion", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                appSettings.AutoSendSentences = 1;
+                appSettings.AutoSendFirstChars = 20;
+                appSettings.AutoSendNextChars = 20;
                 answer.Text = "First one. Second one. A trailing fragment";
                 sentCount.SetValue(window, 0);
                 active.SetValue(window, true);
@@ -358,7 +356,8 @@ internal static class Program
                 await (Task)pump.Invoke(window, new object[] { (int)answerVersion.GetValue(window)! })!;
                 if (active.GetValue(window) is not false)
                     throw new Exception("A refused chunk must stop auto-send for this answer.");
-                if (sentCount.GetValue(window) is not 1)
+                // 20 characters takes both sentences, and the run stops there.
+                if (sentCount.GetValue(window) is not 2)
                     throw new Exception("Auto-send must stop after the chunk it could not deliver.");
                 var status = (TextBlock)window.FindName("Status");
                 if (status.Visibility != Visibility.Visible || !status.Text.StartsWith("Auto-send stopped:", StringComparison.Ordinal))
@@ -366,8 +365,8 @@ internal static class Program
                 if (!autoSendHint.Text.StartsWith("stopped", StringComparison.Ordinal))
                     throw new Exception("The hint must not read as though the whole answer went out.");
                 appSettings.AutoSendAnswer = false;
-                appSettings.AutoSendSentences = 2;
                 sentCount.SetValue(window, 0);
+                messageCount.SetValue(window, 0);
                 answer.Clear();
                 Console.WriteLine("PASS: a refused chunk stops auto-send and reports it once");
                 // The same pump, with nothing left to flush: it must send nothing

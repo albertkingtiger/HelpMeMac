@@ -261,15 +261,6 @@ try
     cancelled.Cancel();
     try { await ChromeAiClient.SendToPageAsync(socket!, provider, "No send", null, cancelled.Token); throw new Exception("Cancellation must propagate"); }
     catch (OperationCanceledException) { Console.WriteLine("PASS Cancellation"); }
-    // Settings' Close Chrome button must work on a browser Help Me! did not
-    // start. This fixture Chrome was launched by the test, so the session owns
-    // no process and killing one would be a no-op. Runs last: it shuts Chrome down.
-    await using (var adopted = new ChromeDebugSession(debugPort))
-    {
-        Check(await ChromeDebugSession.IsDebugEndpointAvailableAsync(debugPort), "Adopted Chrome is reachable before closing");
-        await adopted.CloseAsync();
-        Check(!await ChromeDebugSession.IsDebugEndpointAvailableAsync(debugPort), "Close works on a Chrome Help Me! did not start");
-    }
     Console.WriteLine("ALL CHROME AI SMOKE CHECKS PASSED (local fixtures only)");
 }
 finally

@@ -13,15 +13,30 @@ namespace HelpMe.Services;
 // blocks, and must never go out while its last sentence is still being typed.
 public static class AnswerChunker
 {
-    // The next whole chunk, or null while the answer has not produced one yet.
-    public static string? NextChunk(string answer, int alreadySent, int perMessage, out int sentenceCount)
+    // The next chunk of about `targetChars` characters, or null while the
+    // finished sentences do not add up to that much yet.
+    //
+    // Chunks are whole sentences: the size is a target to reach, not a place to
+    // cut, so a message never ends in the middle of a thought. The first chunk
+    // of an answer is deliberately small, to put something in front of the
+    // reader quickly, and the ones after it are larger.
+    public static string? NextChunk(string answer, int alreadySent, int targetChars, out int sentenceCount)
     {
         sentenceCount = alreadySent;
-        if (perMessage < 1) return null;
+        if (targetChars < 1 || alreadySent < 0) return null;
         var sentences = Split(answer);
-        if (alreadySent < 0 || alreadySent + perMessage > sentences.Count) return null;
-        sentenceCount = alreadySent + perMessage;
-        return Slice(answer, sentences[alreadySent].Start, sentences[sentenceCount - 1].End);
+        if (alreadySent >= sentences.Count) return null;
+        var start = sentences[alreadySent].Start;
+        for (var index = alreadySent; index < sentences.Count; index++)
+        {
+            var text = answer[start..sentences[index].End].Trim();
+            if (text.Length < targetChars) continue;
+            sentenceCount = index + 1;
+            return text;
+        }
+        // Everything finished so far is still under the target: more is coming,
+        // and the flush at the end of the answer sends whatever is left.
+        return null;
     }
 
     // The flush once the answer is complete: everything still unsent, including

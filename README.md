@@ -67,7 +67,7 @@ The default Base model, beam search, and longer six-second segments favor natura
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package.ps1
 ```
 
-This writes `dist/HelpMe-Windows11-Portable.zip` and a SHA-256 checksum. Extract the ZIP on an x64 Windows 11 PC and run `Start-HelpMe.cmd`. It includes self-contained .NET, a standalone Python runtime and dependencies, the default Whisper Base model, and the Korean NLLB model. It does not require a Python or .NET installation. Windows Live Captions is part of Windows 11 and may require its first-run speech pack; Chrome is needed only for the optional AI Answer panel. The NLLB model is licensed CC-BY-NC-4.0.
+This writes `dist/HelpMe-Windows11-Portable.zip` and a SHA-256 checksum. Extract the ZIP on an x64 Windows 11 PC and run `Start-HelpMe.cmd`. It includes self-contained .NET, a standalone Python runtime and dependencies, the default Whisper Base model, and the Korean NLLB model. It does not require a Python or .NET installation. Windows Live Captions is part of Windows 11 and may require its first-run speech pack; the AI and chat pages use the WebView2 runtime that ships with Windows 11. The NLLB model is licensed CC-BY-NC-4.0.
 
 ## Build the Windows installer
 
@@ -75,31 +75,29 @@ This writes `dist/HelpMe-Windows11-Portable.zip` and a SHA-256 checksum. Extract
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 ```
 
-This writes `dist/HelpMe-Setup-<version>.exe` and a SHA-256 checksum. The installer contains the self-contained .NET app, Python and its dependencies, the Visual C++ runtime DLLs, all Whisper models and the Korean NLLB model. It installs per user under `%LOCALAPPDATA%\Programs\HelpMe` without administrator rights, and the uninstaller removes the program and its Windows startup entry while leaving settings and Chrome sign-ins in place. Google Chrome is not included. The script uses an installed Inno Setup 6, or downloads the Tools.InnoSetup package from NuGet into `.tools/innosetup` if there is none.
+This writes `dist/HelpMe-Setup-<version>.exe` and a SHA-256 checksum. The installer contains the self-contained .NET app, Python and its dependencies, the Visual C++ runtime DLLs, all Whisper models and the Korean NLLB model. It installs per user under `%LOCALAPPDATA%\Programs\HelpMe` without administrator rights, and the uninstaller removes the program and its Windows startup entry while leaving settings and the browser panels' sign-ins in place. The script uses an installed Inno Setup 6, or downloads the Tools.InnoSetup package from NuGet into `.tools/innosetup` if there is none.
 
-## Browser: built-in panels or Chrome
+## The web pages: panels 05 and 06
 
-The AI and chat web clients run in one of two places, chosen under **Browser** in Settings.
+The AI and chat web clients run inside Help Me! itself. Panel **05** shows the AI provider, under panel 04 so the page sits beneath the answer it produced; panel **06** shows the chat destination, in its own column on the right. They run on the Microsoft Edge WebView2 runtime, which ships with Windows 11, so nothing extra is installed and no browser window of any kind is opened.
 
-**Built-in panels** (the default) host them inside Help Me! itself: panel **05** shows the AI provider, under panel 04 so the page sits beneath the answer it produced, and panel **06** shows the chat destination in its own column on the right. They run on the Microsoft Edge WebView2 runtime, which ships with Windows 11, so nothing extra is installed and no second browser window appears. Their profile lives in `%LOCALAPPDATA%\HelpMe\WebView2`, separate from the Chrome one, so each engine is signed in once on its own. **Ctrl+5** collapses panel 05, giving its height back to the answer, and **Ctrl+6** collapses panel 06, giving its width back to the rest of the window; **Reload** in a panel header reloads that page when a site gets stuck.
+Their profile lives in `%LOCALAPPDATA%\HelpMe\WebView2`: sign in to each page once there and it is remembered between runs. **Ctrl+5** collapses panel 05, giving its height back to the answer, and **Ctrl+6** collapses panel 06, giving its width back to the rest of the window; **Reload** in a panel header reloads that page when a site gets stuck.
 
-Choosing the built-in panels closes the managed Chrome window, including one an earlier run left open on the debugging port. Choosing **Chrome window** goes back to driving Chrome over that port, and the browser column disappears.
-
-Both engines drive the pages through the same DevTools protocol code, so sending, reading the reply and auto-send behave identically either way.
+The pages are driven through the DevTools protocol, the same way a browser tab would be.
 
 WebView2 creates its browser process only once its window has been shown, and Help Me! starts hidden in the tray. At startup the window is therefore shown off the desktop for the moment the panels need to come up, then returned to the tray; if the restore shortcut or the tray icon is used during those seconds, the window is placed back on screen instead of hidden.
 
 ## AI Answer panel
 
-With **Chrome window** selected, Help Me! opens a dedicated Chrome window containing ChatGPT, Claude, Telegram Web and WhatsApp Web. Sign in there once; its profile is kept in `%LOCALAPPDATA%\HelpMe\ChromeDebug` so login state survives restarts. This optional AI feature requires internet. Captioning and local translation remain separate.
+Panel 05 carries the AI provider's own web client, ChatGPT or Claude. Sign in there once. This optional AI feature requires internet. Captioning and local translation remain separate.
 
-In Settings, select the AI provider. Open the conversation you want in that provider's managed Chrome tab. **Send** uses that existing page without selecting a project/session, reloading, or creating a new conversation. **Open Chrome** / **Close Chrome** next to the debug port starts or stops that browser window without leaving Settings; the label follows the port in the field. Closing works even for a Chrome that was already running when Help Me! started. Quitting Help Me! still only closes a browser it started itself.
+In Settings, select the AI provider; panel 05 follows it. Open the conversation you want in that panel. **Send** uses that existing page without selecting a project/session, reloading, or creating a new conversation.
 
-Sending does not need the provider tab to be in front. Help Me! marks the tab as focused for the duration of the request, so you can stay in Telegram, another tab, or another app and the answer still arrives in panel 04.
+Sending does not need panel 05 to be in front, or Help Me! itself to be. The page is marked as focused for the duration of the request, so you can be in another window entirely and the answer still arrives in panel 04.
 
 Project and Session preferences remain saved but are not used when sending. Settings, including the debugging port (default 9111), are saved as JSON under `%APPDATA%\HelpMe\settings.json`.
 
-Click a position in PC AUDIO to save the text from that point through the current end to the Windows clipboard. The same saved suffix is used by **Send** and **Ctrl+Shift+Z**. Without a saved position, the whole text is sent. Project/session names are never appended to the prompt. An existing matching draft in Chrome is reused; unrelated drafts must be cleared or sent there first.
+Click a position in PC AUDIO to save the text from that point through the current end to the Windows clipboard. The same saved suffix is used by **Send** and **Ctrl+Shift+Z**. Without a saved position, the whole text is sent. Project/session names are never appended to the prompt. An existing matching draft on the page is reused; unrelated drafts must be cleared or sent there first.
 
 ## Background mode and the system tray
 
@@ -107,7 +105,7 @@ Help Me! is a background application. It starts hidden in the system tray and be
 
 The title bar has no close button. The minimize button and Alt+F4 both return the window to the tray, leaving capture running. **Exit** in the tray icon's menu is the only way to quit.
 
-Only one Help Me! runs per signed-in user. Launching it again while it is already in the tray does not start a second copy: the running instance comes to the front instead. This matters because the app is invisible at startup, so a duplicate would otherwise be silent, with two managed Chrome sessions and two processes driving Live Captions.
+Only one Help Me! runs per signed-in user. Launching it again while it is already in the tray does not start a second copy: the running instance comes to the front instead. This matters because the app is invisible at startup, so a duplicate would otherwise be silent, with two sets of browser panels and two processes driving Live Captions.
 
 **Start Help Me! when I sign in to Windows** in Settings is on by default and writes a per-user entry to `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`. Turn it off there to remove the entry. Registering the entry needs no elevation; if it fails, the app reports it and still runs.
 
@@ -119,17 +117,17 @@ When Live Captions is the caption source, its window is moved offscreen as soon 
 
 ## Sending captions to Telegram
 
-Help Me!'s Chrome window also opens **Telegram Web** (`web.telegram.org/k/`). Sign in there once; like the AI providers, the login lives in the dedicated profile and survives restarts.
+Panel 06 carries **Telegram Web** (`web.telegram.org/k/`). Sign in there once; like the AI page, the login lives in the panels' profile and survives restarts.
 
-Select **Telegram** as the provider in Settings and open the chat you want in that tab. **Send** and the send shortcut then deliver the caption text to that open chat instead of to an assistant. Telegram is a destination, not an assistant: nothing is read back, so panel 04 reports what was delivered rather than a reply. The text is typed into the chat's message box and submitted with Enter, falling back to the send button if Enter does not submit. An existing unrelated draft in the message box is left alone and reported rather than overwritten.
+Select **Telegram** as the provider in Settings and open the chat you want in panel 06. **Send** and the send shortcut then deliver the caption text to that open chat instead of to an assistant. Telegram is a destination, not an assistant: nothing is read back, so panel 04 reports what was delivered rather than a reply. The text is typed into the chat's message box and submitted with Enter, falling back to the send button if Enter does not submit. An existing unrelated draft in the message box is left alone and reported rather than overwritten.
 
 **Send Selection** at the bottom of panel 04 posts the AI answer to the open Telegram chat as its own new message, whatever provider produced it. Select part of the answer first to send only that part; with nothing selected, or a selection that is only whitespace, it sends the whole answer. **All Send**, beside it, always sends the whole answer, so a selection does not have to be cleared first. Both send one message and share the Telegram tab, so neither starts while the other is sending. The default shortcuts are **Ctrl+Shift+T** for Send Selection and **Ctrl+Shift+A** for All Send, both changeable in Settings next to the other shortcuts; Restore, Send, Send Selection and All Send must all differ. The button confirms with a brief "Sent"; failures appear on the status line.
 
-**Auto-send**, the checkbox at the bottom of panel 04 beside those buttons, forwards a slow answer in pieces instead of waiting for the end. Panel 04 fills as the AI types, and each time the configured number of finished sentences has accumulated, that piece goes out as its own message. **Auto-send, sentences per message** in Settings sets how many (1 to 10, default 2). Ticking the box while an answer is already arriving starts from the sentences that come next, so nothing on screen is sent twice. The bottom of panel 04 shows how much has gone. A sentence is only finished once the text after it proves so, which keeps abbreviations ("Dr.", "e.g."), decimals and lower-case continuations from splitting a message early; a fenced code block is held back until it closes and then travels in one piece. Whatever is still unsent, including a trailing fragment, follows in one last message when the answer ends, and the run then stops: an answer that went out in full while it was being written is not flushed again. Auto-send shares the chat tab with the two buttons, so neither interrupts the other. A refused piece stops auto-send for that answer and says so, rather than carrying on and leaving a hole in what was received. Text that has already gone out cannot be recalled if the AI rewrites it, so leave auto-send off when the answer matters more than the wait.
+**Auto-send**, the checkbox at the bottom of panel 04 beside those buttons, forwards a slow answer in pieces instead of waiting for the end. Panel 04 fills as the AI types, and the opening message goes out as soon as the answer reaches the first size, so the reader sees something straight away; the rest follow at the second size. **Auto-send, first message … then …** in Settings sets both (20 to 4000 characters, 100 and 500 by default). A message is always whole sentences, so a size is a target to reach rather than a place to cut, and the first message of each answer begins with a line of dashes marking where that answer started. Ticking the box while an answer is already arriving starts from the sentences that come next, so nothing on screen is sent twice. The bottom of panel 04 shows how much has gone. A sentence is only finished once the text after it proves so, which keeps abbreviations ("Dr.", "e.g."), decimals and lower-case continuations from splitting a message early; a fenced code block is held back until it closes and then travels in one piece. Whatever is still unsent, including a trailing fragment, follows in one last message when the answer ends, and the run then stops: an answer that went out in full while it was being written is not flushed again. Auto-send shares the chat tab with the two buttons, so neither interrupts the other. A refused piece stops auto-send for that answer and says so, rather than carrying on and leaving a hole in what was received. Text that has already gone out cannot be recalled if the AI rewrites it, so leave auto-send off when the answer matters more than the wait.
 
-**Send answers to** in Settings chooses Telegram or WhatsApp for those two buttons and their shortcuts. Help Me!'s Chrome window opens both `web.telegram.org/k/` and `web.whatsapp.com`; link WhatsApp once by scanning its QR code in that tab, then open the chat you want. WhatsApp selectors depend on its page structure and have only been exercised against local fixtures.
+**Send answers to** in Settings chooses Telegram or WhatsApp for those two buttons and their shortcuts, and panel 06 follows that choice; link WhatsApp once by scanning its QR code in the panel, then open the chat you want. WhatsApp selectors depend on its page structure and have only been exercised against local fixtures.
 
-This uses the signed-in web session in the managed Chrome window. Help Me! makes no API calls of its own and stores no bot token; audio, captions and local translation stay on this PC.
+This uses the signed-in web session in panel 06. Help Me! makes no API calls of its own and stores no bot token; audio, captions and local translation stay on this PC.
 
 **01 Start** and **01 Stop** control Whisper capture independently for PC audio, translation, and microphone panels. Translation can process text already in the box without starting capture.
 

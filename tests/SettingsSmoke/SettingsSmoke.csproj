@@ -8,7 +8,6 @@
   <ItemGroup>
     <Compile Include="../../Services/AppSettings.cs" Link="AppSettings.cs" />
     <Compile Include="../../Services/CaptionMethod.cs" Link="CaptionMethod.cs" />
-    <Compile Include="../../Services/BrowserEngine.cs" Link="BrowserEngine.cs" />
     <Compile Include="../../Services/ChromeAiClient.cs" Link="ChromeAiClient.cs" />
   </ItemGroup>
 </Project>

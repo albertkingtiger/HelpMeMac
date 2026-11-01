@@ -13,8 +13,8 @@ namespace HelpMe;
 public partial class SettingsWindow : Window
 {
     // Preview rendering builds a dialog from defaults without reading the user's files.
-    public SettingsWindow(CaptionMethod method, int chromePort = 9111, string theme = "Dark")
-        : this(new AppSettings { CaptionMethod = method, ChromeDebugPort = chromePort, Theme = theme }) { }
+    public SettingsWindow(CaptionMethod method, string theme = "Dark")
+        : this(new AppSettings { CaptionMethod = method, Theme = theme }) { }
 
     public SettingsWindow(AppSettings settings)
     {
@@ -25,9 +25,6 @@ public partial class SettingsWindow : Window
         StartWithWindowsCheck.IsChecked = settings.StartWithWindows;
         WhisperOption.IsChecked = settings.CaptionMethod == CaptionMethod.Whisper;
         WindowsCaptionsOption.IsChecked = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions;
-        WebViewOption.IsChecked = settings.BrowserEngine == BrowserEngine.WebView2;
-        ChromeOption.IsChecked = settings.BrowserEngine == BrowserEngine.Chrome;
-        ChromePortText.Text = settings.ChromeDebugPort.ToString();
         ProviderCombo.ItemsSource = new[] { "ChatGPT", "Claude", "Telegram" };
         ProviderCombo.SelectedItem = settings.AiProvider is "Claude" or "Telegram" ? settings.AiProvider : "ChatGPT";
         ProjectCombo.Text = settings.AiProject;
@@ -38,7 +35,8 @@ public partial class SettingsWindow : Window
         TelegramAllShortcutText.Text = TryNormalizeShortcut(settings.TelegramAllShortcut, out var normalizedAll) ? normalizedAll : "Ctrl+Shift+A";
         MessengerCombo.ItemsSource = Messenger.All.Select(messenger => messenger.Name).ToArray();
         MessengerCombo.SelectedItem = Messenger.Find(settings.MessengerTarget)?.Name ?? Messenger.Telegram.Name;
-        AutoSendSentencesText.Text = settings.AutoSendSentences.ToString(CultureInfo.CurrentCulture);
+        AutoSendFirstCharsText.Text = settings.AutoSendFirstChars.ToString(CultureInfo.CurrentCulture);
+        AutoSendNextCharsText.Text = settings.AutoSendNextChars.ToString(CultureInfo.CurrentCulture);
         PcFontSizeText.Text = settings.PcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         TranslationFontSizeText.Text = settings.TranslationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         AnswerInputFontSizeText.Text = settings.AnswerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
@@ -48,12 +46,8 @@ public partial class SettingsWindow : Window
         SetColorButton(TranslationTextColorButton, settings.TranslationTextColor);
         SetColorButton(AnswerInputTextColorButton, settings.AnswerInputTextColor);
         SetColorButton(AnswerTextColorButton, settings.AnswerTextColor);
-        Loaded += async (_, _) => await RefreshChromeButtonAsync();
     }
     public CaptionMethod SelectedMethod => WindowsCaptionsOption.IsChecked == true ? CaptionMethod.WindowsLiveCaptions : CaptionMethod.Whisper;
-    public BrowserEngine SelectedBrowserEngine =>
-        ChromeOption.IsChecked == true ? BrowserEngine.Chrome : BrowserEngine.WebView2;
-    public int ChromeDebugPort => int.TryParse(ChromePortText.Text, out var port) && port is >= 1024 and <= 65535 ? port : 9111;
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
     public string AiProject => ProjectCombo.Text.Trim();
     public string AiSession => SessionCombo.Text.Trim();
@@ -63,49 +57,13 @@ public partial class SettingsWindow : Window
     public string TelegramAllShortcut => TelegramAllShortcutText.Text;
     public string MessengerTarget => MessengerCombo.SelectedItem as string ?? Messenger.Telegram.Name;
     // Out-of-range text is caught on Save, so the invalid value survives to be reported.
-    public int AutoSendSentences => int.TryParse(AutoSendSentencesText.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) ? value : 0;
+    public int AutoSendFirstChars => ReadCount(AutoSendFirstCharsText);
+    public int AutoSendNextChars => ReadCount(AutoSendNextCharsText);
+    private static int ReadCount(System.Windows.Controls.TextBox box)
+        => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) ? value : 0;
     public string SelectedTheme => ThemeCombo.SelectedItem as string ?? "Dark";
     public bool StartWithWindows => StartWithWindowsCheck.IsChecked == true;
 
-    // Supplied by the owner, which holds the browser session. The dialog only
-    // drives the button; it never owns or starts Chrome itself.
-    public Func<int, Task>? OpenChromeAsync { get; set; }
-    public Func<Task>? CloseChromeAsync { get; set; }
-
-    private async void ChromeToggle_Click(object sender, RoutedEventArgs e)
-    {
-        if (OpenChromeAsync is null || CloseChromeAsync is null) return;
-        var port = ChromeDebugPort;
-        ChromeToggleButton.IsEnabled = false;
-        ChromeToggleButton.Content = "Working…";
-        try
-        {
-            if (await ChromeDebugSession.IsDebugEndpointAvailableAsync(port)) await CloseChromeAsync();
-            else await OpenChromeAsync(port);
-        }
-        catch (Exception error) when (error is IOException or System.Net.Http.HttpRequestException
-            or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            System.Windows.MessageBox.Show(this, error.Message, "Chrome", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        finally
-        {
-            ChromeToggleButton.IsEnabled = true;
-            await RefreshChromeButtonAsync();
-        }
-    }
-
-    private async Task RefreshChromeButtonAsync()
-    {
-        if (OpenChromeAsync is null || CloseChromeAsync is null)
-        {
-            ChromeToggleButton.IsEnabled = false;
-            ChromeToggleButton.Content = "Open Chrome";
-            return;
-        }
-        ChromeToggleButton.Content =
-            await ChromeDebugSession.IsDebugEndpointAvailableAsync(ChromeDebugPort) ? "Close Chrome" : "Open Chrome";
-    }
     public double PcFontSize => ReadFontSize(PcFontSizeText);
     public string PcTextColor => PcTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public string PcCaretColor => PcCaretColorButton.Content?.ToString() ?? "#AEAFAD";
@@ -197,9 +155,9 @@ public partial class SettingsWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        if (!AppSettings.IsSentenceCount(AutoSendSentences))
+        if (!AppSettings.IsChunkSize(AutoSendFirstChars) || !AppSettings.IsChunkSize(AutoSendNextChars))
         {
-            System.Windows.MessageBox.Show(this, "Auto-send can use 1 to 10 sentences per message.", "Settings",
+            System.Windows.MessageBox.Show(this, "Auto-send sizes must be between 20 and 4000 characters.", "Settings",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

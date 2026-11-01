@@ -29,7 +29,7 @@ public partial class App : Application
         {
             var settingsPreview = e.Args[0] == "--render-settings-preview";
             Window preview = settingsPreview
-                ? new SettingsWindow(Services.CaptionMethod.Whisper, 9111, theme: e.Args.Length == 5 ? e.Args[4] : "Dark")
+                ? new SettingsWindow(Services.CaptionMethod.Whisper, theme: e.Args.Length == 5 ? e.Args[4] : "Dark")
                 : window;
             var width = settingsPreview ? 580 : 1004;
             var height = settingsPreview ? 720 : 748;

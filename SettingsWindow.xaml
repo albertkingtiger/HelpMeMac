@@ -27,25 +27,13 @@
         <TextBlock Text="Read Windows Live Captions through accessibility. Windows may ask for initial setup." Foreground="{DynamicResource Muted}" Margin="23,6,0,20" TextWrapping="Wrap"/>
 
         <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
-        <TextBlock Text="BROWSER" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,12"/>
-        <RadioButton x:Name="WebViewOption" Content="Built-in panels" GroupName="BrowserEngine" IsChecked="True"/>
-        <TextBlock Text="The AI and chat pages run inside Help Me! as panels 05 and 06. Sign in to them once there; no separate browser window opens."
-                   Foreground="{DynamicResource Muted}" Margin="23,6,0,12" TextWrapping="Wrap"/>
-        <RadioButton x:Name="ChromeOption" Content="Chrome window" GroupName="BrowserEngine"/>
-        <TextBlock Text="The pages run in a separate Chrome window on the debugging port below. Choosing the built-in panels closes that window."
-                   Foreground="{DynamicResource Muted}" Margin="23,6,0,20" TextWrapping="Wrap"/>
+        <TextBlock Text="PAGES" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,12"/>
+        <TextBlock Text="The AI and chat pages run inside Help Me! as panels 05 and 06. Sign in to them once there; they keep their sign-ins between runs."
+                   Foreground="{DynamicResource Muted}" Margin="0,0,0,18" TextWrapping="Wrap"/>
 
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <TextBlock Text="Chrome debug port" VerticalAlignment="Center" Margin="0,0,0,10"/>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="ChromePortText" Style="{StaticResource SettingsInput}" Width="100"/>
-            <Button x:Name="ChromeToggleButton" Content="Open Chrome" Click="ChromeToggle_Click" Margin="8,0,0,0"
-                    MinWidth="116" Height="28" Background="{DynamicResource InputBackground}"
-                    BorderBrush="{DynamicResource Divider}"
-                    ToolTip="Open or close Help Me!'s Chrome window on this port"/>
-          </StackPanel>
           <TextBlock Grid.Row="1" Text="AI provider" VerticalAlignment="Center" Margin="0,0,0,10"/>
           <ComboBox Grid.Row="1" Grid.Column="1" x:Name="ProviderCombo" Margin="0,0,0,10"/>
           <TextBlock Grid.Row="2" Text="Project" VerticalAlignment="Center" Margin="0,0,0,10"/>
@@ -72,13 +60,17 @@
                    IsReadOnly="True" IsReadOnlyCaretVisible="False" PreviewKeyDown="TelegramAllShortcutText_PreviewKeyDown"
                    Margin="0,10,0,0" ToolTip="Sends the whole AI answer to Telegram, ignoring any selection"/>
         </Grid>
-        <TextBlock Text="Send uses the conversation already open on the selected provider's page, in panel 05 or in the Chrome window." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,14,0,14"/>
+        <TextBlock Text="Send uses the conversation already open in panel 05." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,14,0,14"/>
         <StackPanel Orientation="Horizontal">
-          <TextBlock Text="Auto-send, sentences per message" VerticalAlignment="Center" Margin="0,0,10,0"/>
-          <TextBox x:Name="AutoSendSentencesText" Style="{StaticResource SettingsInput}" Width="56"
-                   ToolTip="From 1 to 10 sentences"/>
+          <TextBlock Text="Auto-send, first message" VerticalAlignment="Center" Margin="0,0,10,0"/>
+          <TextBox x:Name="AutoSendFirstCharsText" Style="{StaticResource SettingsInput}" Width="56"
+                   ToolTip="Characters in the opening message, 20 to 4000"/>
+          <TextBlock Text="characters, then" VerticalAlignment="Center" Margin="10,0,10,0"/>
+          <TextBox x:Name="AutoSendNextCharsText" Style="{StaticResource SettingsInput}" Width="56"
+                   ToolTip="Characters in each message after the first, 20 to 4000"/>
+          <TextBlock Text="characters" VerticalAlignment="Center" Margin="10,0,0,0"/>
         </StackPanel>
-        <TextBlock Text="Auto-send itself is the checkbox at the bottom of panel 04. While it is on, each time this many sentences are finished they go out as their own message, so a slow answer starts arriving straight away. A code block is held back until it closes, and the rest of the answer follows when it ends. Text that has already gone out cannot be recalled if the AI rewrites it."
+        <TextBlock Text="Auto-send itself is the checkbox at the bottom of panel 04. While it is on, the opening message goes out as soon as the answer reaches the first size, so the reader sees something straight away, and the rest follow at the second size. Messages are whole sentences, so a size is a target to reach rather than a place to cut. The first message of each answer starts with a line of dashes. A code block is held back until it closes, and the rest of the answer follows when it ends. Text that has already gone out cannot be recalled if the AI rewrites it."
                    Foreground="{DynamicResource Muted}" Margin="0,8,0,20" TextWrapping="Wrap"/>
 
         <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>

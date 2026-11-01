@@ -7,6 +7,5 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Services/ChromeAiClient.cs" Link="ChromeAiClient.cs" />
-    <Compile Include="../../Services/ChromeDebugSession.cs" Link="ChromeDebugSession.cs" />
   </ItemGroup>
 </Project>

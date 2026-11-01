@@ -73,11 +73,16 @@ public sealed class WebViewBrowserSession : IAsyncDisposable
         var current = view.Source?.AbsoluteUri;
         if (current is not null && Uri.TryCreate(current, UriKind.Absolute, out var open) &&
             Uri.TryCreate(url, UriKind.Absolute, out var wanted) &&
-            string.Equals(ChromeDebugSession.StripWww(open.Host), ChromeDebugSession.StripWww(wanted.Host),
+            string.Equals(StripWww(open.Host), StripWww(wanted.Host),
                 StringComparison.OrdinalIgnoreCase))
             return;
         view.Source = new Uri(url);
     }
+
+    // TrimStart(char[]) would strip every leading 'w' and '.', turning
+    // web.telegram.org into eb.telegram.org and reloading the page every time.
+    private static string StripWww(string host) =>
+        host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
 
     private static string ProviderUrl(string provider) => Messenger.Find(provider)?.Url
         ?? (provider == "Claude" ? "https://claude.ai/" : "https://chatgpt.com/");
