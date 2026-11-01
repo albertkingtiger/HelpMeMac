@@ -22,6 +22,8 @@ public sealed class AppSettings
     public string TelegramShortcut { get; set; } = "Ctrl+Shift+T";
     public string TelegramAllShortcut { get; set; } = "Ctrl+Shift+A";
     public string MessengerTarget { get; set; } = "Telegram";
+    public bool AutoSendAnswer { get; set; }
+    public int AutoSendSentences { get; set; } = 2;
     public string Theme { get; set; } = "Dark";
     public bool StartWithWindows { get; set; } = true;
     public bool TranslationCollapsed { get; set; }
@@ -73,6 +75,8 @@ public sealed class AppSettings
                     if (!string.IsNullOrWhiteSpace(saved.TelegramShortcut)) result.TelegramShortcut = saved.TelegramShortcut;
                     if (!string.IsNullOrWhiteSpace(saved.TelegramAllShortcut)) result.TelegramAllShortcut = saved.TelegramAllShortcut;
                     result.MessengerTarget = Messenger.Find(saved.MessengerTarget)?.Name ?? result.MessengerTarget;
+                    result.AutoSendAnswer = saved.AutoSendAnswer;
+                    if (IsSentenceCount(saved.AutoSendSentences)) result.AutoSendSentences = saved.AutoSendSentences;
                     result.Theme = saved.Theme is "Light" or "Dark" ? saved.Theme : "Dark";
                     result.StartWithWindows = saved.StartWithWindows;
                     result.TranslationCollapsed = saved.TranslationCollapsed;
@@ -141,6 +145,14 @@ public sealed class AppSettings
         MessengerTarget = Messenger.Find(target)?.Name ?? throw new ArgumentOutOfRangeException(nameof(target));
         SavePreferences();
     }
+    public void SaveAutoSend(bool enabled, int sentencesPerMessage)
+    {
+        if (!IsSentenceCount(sentencesPerMessage))
+            throw new ArgumentOutOfRangeException(nameof(sentencesPerMessage), "Auto-send must use 1 to 10 sentences.");
+        AutoSendAnswer = enabled;
+        AutoSendSentences = sentencesPerMessage;
+        SavePreferences();
+    }
     public void SaveTheme(string theme)
     {
         if (theme is not ("Light" or "Dark")) throw new ArgumentOutOfRangeException(nameof(theme));
@@ -188,7 +200,8 @@ public sealed class AppSettings
         var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
             AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut, Theme, CaptionMethod, RestoreShortcut,
-            StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget),
+            StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
+            AutoSendAnswer, AutoSendSentences),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -206,6 +219,7 @@ public sealed class AppSettings
             throw new InvalidDataException("Audio thresholds in appsettings.json are out of range.");
     }
     private static bool IsFontSize(double value) => value is >= 8 and <= 48;
+    public static bool IsSentenceCount(int value) => value is >= 1 and <= 10;
     private static bool IsColor(string? value) => value is not null && Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$", RegexOptions.CultureInvariant);
     private sealed record Preferences(int ChromeDebugPort, string AiProvider, string AiProject, string AiSession,
         double WindowWidth = 1060, double WindowHeight = 860,
@@ -216,7 +230,8 @@ public sealed class AppSettings
         string SendShortcut = "Ctrl+Shift+Z", string Theme = "Dark", CaptionMethod CaptionMethod = CaptionMethod.Whisper,
         string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
         bool TranslationCollapsed = false, bool AnswerCollapsed = false,
-        string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram");
+        string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram",
+        bool AutoSendAnswer = false, int AutoSendSentences = 2);
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);

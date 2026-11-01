@@ -71,6 +71,12 @@ public partial class MainWindow : Window
     private const string AllLabel = "All Send";
     private bool telegramSending;
     private int telegramConfirmation;
+    // Auto-send state for the answer being generated right now.
+    private bool autoSendActive;
+    private bool autoSendPumping;
+    private bool autoSendFinal;
+    private bool autoSendFailed;
+    private int autoSendSentences;
     private bool startedInTray;
     private EventWaitHandle? showRequest;
     private RegisteredWaitHandle? showRequestWait;
@@ -120,6 +126,7 @@ public partial class MainWindow : Window
             Height = settings.WindowHeight;
             ApplyEditorAppearance();
             ApplySendShortcut();
+            UpdateAutoSendHint();
             TranslationCollapseToggle.IsChecked = settings.TranslationCollapsed;
             AnswerCollapseToggle.IsChecked = settings.AnswerCollapsed;
             ApplyTranslationCollapsed();
@@ -757,28 +764,17 @@ public partial class MainWindow : Window
             ShowError("There is no AI answer to send. Select text in panel 04, or send a prompt first.");
             return;
         }
-        if (chrome is null) { ShowError("Chrome debug session is not available."); return; }
-        var target = settings.MessengerTarget;
         telegramSending = true;
         // Both buttons drive one browser tab, so neither may start a second send.
         TelegramSendButton.IsEnabled = TelegramSendAllButton.IsEnabled = false;
         button.Content = "Sending…";
         Status.Visibility = Visibility.Collapsed;
-        var browser = chrome;
+        string? failure = null;
         var delivered = false;
         try
         {
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            await Task.Run(() => browser.SendPromptAsync(message, target, null, cancellation.Token));
-            delivered = true;
-        }
-        catch (OperationCanceledException)
-        {
-            if (!closing) ShowError($"{target} did not accept the message in time. Check its tab in Chrome.");
-        }
-        catch (Exception error) when (error is IOException or InvalidOperationException or HttpRequestException)
-        {
-            if (!closing) ShowError(error.Message);
+            failure = await DeliverToMessengerAsync(message);
+            delivered = failure is null;
         }
         finally
         {
@@ -789,9 +785,119 @@ public partial class MainWindow : Window
                 // A short confirmation on the button itself: the status line is
                 // for errors, and a sent message needs no standing notice.
                 button.Content = delivered ? "Sent" : restingLabel;
-                if (delivered) await RestoreTelegramButtonAsync(button, restingLabel);
             }
         }
+        if (closing) return;
+        if (failure is not null) ShowError(failure);
+        else if (delivered) await RestoreTelegramButtonAsync(button, restingLabel);
+    }
+
+    // One delivery to the chosen chat app. Returns null when the message was
+    // accepted, otherwise the text to show the user. The buttons and auto-send
+    // both come through here, so neither drives the tab while the other holds it.
+    private async Task<string?> DeliverToMessengerAsync(string message)
+    {
+        if (chrome is null) return "Chrome debug session is not available.";
+        var browser = chrome;
+        var target = settings.MessengerTarget;
+        try
+        {
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await Task.Run(() => browser.SendPromptAsync(message, target, null, cancellation.Token));
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            return $"{target} did not accept the message in time. Check its tab in Chrome.";
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException or HttpRequestException)
+        {
+            return error.Message;
+        }
+    }
+
+    // Auto-send forwards the answer a few sentences at a time while the AI is
+    // still typing. A progress update only nudges the pump: one send holds the
+    // chat tab, so the pump drains whatever accumulated while it was busy.
+    private async Task PumpAutoSendAsync(int outputVersion)
+    {
+        if (autoSendPumping) return;
+        autoSendPumping = true;
+        try
+        {
+            while (!closing && autoSendActive && outputVersion == answerOutputVersion)
+            {
+                // A button press owns the tab until it finishes.
+                if (telegramSending) { await Task.Delay(200); continue; }
+                var sentences = autoSendSentences;
+                var chunk = autoSendFinal
+                    ? AnswerChunker.RemainingChunk(AnswerText.Text, sentences, out sentences)
+                    : AnswerChunker.NextChunk(AnswerText.Text, sentences, settings.AutoSendSentences, out sentences);
+                if (chunk is null) return;
+                autoSendSentences = sentences;
+                telegramSending = true;
+                string? failure;
+                try { failure = await DeliverToMessengerAsync(chunk); }
+                finally { telegramSending = false; }
+                if (failure is not null)
+                {
+                    // Carrying on would leave holes in what the reader receives.
+                    autoSendActive = false;
+                    autoSendFailed = true;
+                    if (!closing)
+                    {
+                        ShowError($"Auto-send stopped: {failure}");
+                        UpdateAutoSendHint();
+                    }
+                    return;
+                }
+                // The flush is the whole rest of the answer in one message, so
+                // the run is over: nothing may be taken from this answer again.
+                if (autoSendFinal) autoSendActive = false;
+                if (!closing) UpdateAutoSendHint();
+                if (!autoSendActive) return;
+            }
+        }
+        finally { autoSendPumping = false; }
+    }
+
+    // Auto-send is switched on the panel 04 bar, beside the buttons it feeds,
+    // because it is turned on and off for one answer at a time.
+    private void AutoSend_Changed(object sender, RoutedEventArgs e)
+    {
+        var enabled = AutoSendCheck.IsChecked == true;
+        // The hint keeps the box in step with the setting, so only a real change
+        // of mind re-anchors a run that is already under way.
+        var changed = enabled != settings.AutoSendAnswer;
+        if (initialized && changed) settings.SaveAutoSend(enabled, settings.AutoSendSentences);
+        if (!enabled) autoSendActive = false;
+        else if (changed && answerCancellation is not null)
+        {
+            // Switched on while an answer is arriving: start from what comes
+            // next, so the part already on screen is not sent a second time.
+            autoSendSentences = AnswerChunker.SentenceCount(AnswerText.Text);
+            autoSendActive = true;
+            autoSendFailed = false;
+        }
+        UpdateAutoSendHint();
+    }
+
+    private void UpdateAutoSendHint()
+    {
+        AutoSendCheck.IsChecked = settings.AutoSendAnswer;
+        if (!settings.AutoSendAnswer)
+        {
+            AutoSendHint.Visibility = Visibility.Collapsed;
+            return;
+        }
+        AutoSendHint.Visibility = Visibility.Visible;
+        // A run that was stopped by a refusal says so, so the count on the bar is
+        // never read as "all of it went out".
+        AutoSendHint.Text = autoSendFailed ? $"stopped · {autoSendSentences} sent"
+            : autoSendSentences > 0 ? $"{autoSendSentences} sent"
+            : $"every {settings.AutoSendSentences}";
+        AutoSendHint.ToolTip =
+            $"The answer goes to {settings.MessengerTarget} in pieces of {settings.AutoSendSentences} sentences";
     }
 
     private async Task RestoreTelegramButtonAsync(Button button, string restingLabel)
@@ -864,6 +970,12 @@ public partial class MainWindow : Window
         answerCancellation?.Cancel();
         TranslationInputText.Clear();
         AnswerText.Clear();
+        // The cleared answer has nothing left to auto-send, so the bar must not
+        // keep reporting what the last one delivered.
+        autoSendActive = false;
+        autoSendFailed = false;
+        autoSendSentences = 0;
+        UpdateAutoSendHint();
     }
     private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
     private void MoveCaptionCaretToEnd()
@@ -900,10 +1012,24 @@ public partial class MainWindow : Window
         var provider = settings.AiProvider;
         Status.Visibility = Visibility.Collapsed;
         void Display(string text) => DisplayAnswer(text, outputVersion);
+        // Each answer starts its own auto-send run, so a setting changed between
+        // answers takes effect and the sentence count starts from zero.
+        autoSendActive = settings.AutoSendAnswer;
+        autoSendFinal = false;
+        autoSendFailed = false;
+        autoSendSentences = 0;
+        UpdateAutoSendHint();
         try
         {
             var response = await Task.Run(() => browser.SendPromptAsync(prompt, provider, Display, cancellation.Token));
             Display(response);
+            if (autoSendActive && outputVersion == answerOutputVersion)
+            {
+                // The reply is finished, so a trailing fragment no longer has to
+                // wait for punctuation that will never arrive.
+                autoSendFinal = true;
+                await PumpAutoSendAsync(outputVersion);
+            }
         }
         catch (OperationCanceledException) { if (!closing) ShowError("AI request timed out or was cancelled. Check Chrome for the reply or a sign-in/usage-limit message."); }
         catch (Exception error) { if (!closing) ShowError(error.Message); }
@@ -913,6 +1039,7 @@ public partial class MainWindow : Window
     {
         if (closing || outputVersion != answerOutputVersion) return;
         UpdateTextPreservingView(AnswerText, () => AnswerText.Text = text);
+        if (autoSendActive) _ = PumpAutoSendAsync(outputVersion);
     });
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -1017,6 +1144,8 @@ public partial class MainWindow : Window
             settings.SaveTelegramShortcut(dialog.TelegramShortcut);
             settings.SaveTelegramAllShortcut(dialog.TelegramAllShortcut);
             settings.SaveMessengerTarget(dialog.MessengerTarget);
+            // The toggle lives on the panel 04 bar; Settings only sets the size.
+            settings.SaveAutoSend(settings.AutoSendAnswer, dialog.AutoSendSentences);
             if (dialog.StartWithWindows != settings.StartWithWindows)
             {
                 var startupError = StartupRegistration.Apply(dialog.StartWithWindows);
@@ -1046,6 +1175,7 @@ public partial class MainWindow : Window
                 dialog.AnswerFontSize, dialog.AnswerTextColor);
             ApplyEditorAppearance();
             ApplySendShortcut();
+            UpdateAutoSendHint();
             if (captionMethodChanged)
             {
                 UpdateCaptionSourceHint();

@@ -7,7 +7,10 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
-        var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        // The test owns the windows it closes, so startup must not claim the
+        // single-instance mutex: Help Me! running in the tray would otherwise
+        // turn this process away and shut the Application down under the test.
+        var app = new App(launchMainWindow: false) { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.InitializeComponent();
         Exception? failure = null;
         app.DispatcherUnhandledException += (_, args) => { failure = args.Exception; args.Handled = true; };

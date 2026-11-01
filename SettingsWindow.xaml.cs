@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
         TelegramAllShortcutText.Text = TryNormalizeShortcut(settings.TelegramAllShortcut, out var normalizedAll) ? normalizedAll : "Ctrl+Shift+A";
         MessengerCombo.ItemsSource = Messenger.All.Select(messenger => messenger.Name).ToArray();
         MessengerCombo.SelectedItem = Messenger.Find(settings.MessengerTarget)?.Name ?? Messenger.Telegram.Name;
+        AutoSendSentencesText.Text = settings.AutoSendSentences.ToString(CultureInfo.CurrentCulture);
         PcFontSizeText.Text = settings.PcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         TranslationFontSizeText.Text = settings.TranslationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         AnswerInputFontSizeText.Text = settings.AnswerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
@@ -57,6 +58,8 @@ public partial class SettingsWindow : Window
     public string TelegramShortcut => TelegramShortcutText.Text;
     public string TelegramAllShortcut => TelegramAllShortcutText.Text;
     public string MessengerTarget => MessengerCombo.SelectedItem as string ?? Messenger.Telegram.Name;
+    // Out-of-range text is caught on Save, so the invalid value survives to be reported.
+    public int AutoSendSentences => int.TryParse(AutoSendSentencesText.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) ? value : 0;
     public string SelectedTheme => ThemeCombo.SelectedItem as string ?? "Dark";
     public bool StartWithWindows => StartWithWindowsCheck.IsChecked == true;
 
@@ -187,6 +190,12 @@ public partial class SettingsWindow : Window
         if (new[] { PcFontSize, TranslationFontSize, AnswerInputFontSize, AnswerFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
         {
             System.Windows.MessageBox.Show(this, "Enter font sizes from 8 to 48.", "Settings",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (!AppSettings.IsSentenceCount(AutoSendSentences))
+        {
+            System.Windows.MessageBox.Show(this, "Auto-send can use 1 to 10 sentences per message.", "Settings",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

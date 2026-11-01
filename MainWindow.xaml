@@ -134,6 +134,12 @@
         <Border Grid.Row="4" x:Name="TelegramBar" Background="{DynamicResource Surface}"
                 BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="6,5">
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <CheckBox x:Name="AutoSendCheck" Content="Auto-send" VerticalAlignment="Center" Margin="0,0,10,0"
+                      Checked="AutoSend_Changed" Unchecked="AutoSend_Changed"
+                      ToolTip="Send the answer as it is written, a few sentences at a time"
+                      AutomationProperties.Name="Auto-send the answer while it is still generating"/>
+            <TextBlock x:Name="AutoSendHint" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"
+                       Foreground="{DynamicResource Muted}" Visibility="Collapsed"/>
             <Button x:Name="TelegramSendAllButton" Content="All Send" Click="TelegramSendAll_Click"
                     MinWidth="90" Margin="0,0,8,0"
                     ToolTip="Send the whole AI answer to Telegram, ignoring any selection"

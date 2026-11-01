@@ -65,6 +65,21 @@ try
         throw new Exception("Messenger choice did not round-trip through JSON preferences.");
     settings.SaveMessengerTarget("Telegram");
     Console.WriteLine("PASS: Telegram or WhatsApp destination persistence");
+    settings.SaveAutoSend(enabled: true, sentencesPerMessage: 3);
+    var autoSend = AppSettings.Load(preferencePath);
+    if (!autoSend.AutoSendAnswer || autoSend.AutoSendSentences != 3)
+        throw new Exception("Auto-send settings did not round-trip through JSON preferences.");
+    // Out-of-range counts are refused rather than saved and clamped later.
+    foreach (var invalid in new[] { 0, -1, 11 })
+    {
+        try { settings.SaveAutoSend(true, invalid); }
+        catch (ArgumentOutOfRangeException) { continue; }
+        throw new Exception($"Auto-send accepted {invalid} sentences per message.");
+    }
+    settings.SaveAutoSend(enabled: false, sentencesPerMessage: 2);
+    if (AppSettings.Load(preferencePath).AutoSendAnswer)
+        throw new Exception("Auto-send did not turn back off through JSON preferences.");
+    Console.WriteLine("PASS: auto-send toggle and sentence count persistence");
     settings.SaveTheme("Light");
     settings.SaveCaptionMethod(CaptionMethod.WindowsLiveCaptions);
     var displaySettings = AppSettings.Load(preferencePath);
