@@ -25,6 +25,8 @@ public partial class SettingsWindow : Window
         StartWithWindowsCheck.IsChecked = settings.StartWithWindows;
         WhisperOption.IsChecked = settings.CaptionMethod == CaptionMethod.Whisper;
         WindowsCaptionsOption.IsChecked = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions;
+        WebViewOption.IsChecked = settings.BrowserEngine == BrowserEngine.WebView2;
+        ChromeOption.IsChecked = settings.BrowserEngine == BrowserEngine.Chrome;
         ChromePortText.Text = settings.ChromeDebugPort.ToString();
         ProviderCombo.ItemsSource = new[] { "ChatGPT", "Claude", "Telegram" };
         ProviderCombo.SelectedItem = settings.AiProvider is "Claude" or "Telegram" ? settings.AiProvider : "ChatGPT";
@@ -49,6 +51,8 @@ public partial class SettingsWindow : Window
         Loaded += async (_, _) => await RefreshChromeButtonAsync();
     }
     public CaptionMethod SelectedMethod => WindowsCaptionsOption.IsChecked == true ? CaptionMethod.WindowsLiveCaptions : CaptionMethod.Whisper;
+    public BrowserEngine SelectedBrowserEngine =>
+        ChromeOption.IsChecked == true ? BrowserEngine.Chrome : BrowserEngine.WebView2;
     public int ChromeDebugPort => int.TryParse(ChromePortText.Text, out var port) && port is >= 1024 and <= 65535 ? port : 9111;
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
     public string AiProject => ProjectCombo.Text.Trim();

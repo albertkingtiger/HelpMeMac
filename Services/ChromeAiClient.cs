@@ -62,12 +62,22 @@ public sealed class ChromeAiClient
     internal static async Task<string> SendToPageAsync(Uri socketUri, string provider,
         string prompt, Action<string>? progress, CancellationToken cancellation, Action<string>? diagnostics = null)
     {
+        using var page = new CdpPage();
+        diagnostics?.Invoke("stage=connect");
+        using var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        connect.CancelAfter(TimeSpan.FromSeconds(30));
+        await page.ConnectAsync(socketUri, connect.Token);
+        return await SendOnPageAsync(page, provider, prompt, progress, cancellation, diagnostics);
+    }
+
+    // The engine is settled by the time a page exists: a WebView2 panel and a
+    // Chrome tab are driven by exactly these steps.
+    internal static async Task<string> SendOnPageAsync(IBrowserPage page, string provider,
+        string prompt, Action<string>? progress, CancellationToken cancellation, Action<string>? diagnostics = null)
+    {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         var token = timeout.Token;
-        using var page = new CdpPage();
-        diagnostics?.Invoke("stage=connect");
-        await page.ConnectAsync(socketUri, token);
         await EmulateFocusAsync(page, token, diagnostics);
         // A messenger is a destination, not an assistant: the text is delivered to
         // the open chat and there is no reply to wait for or read back.
@@ -136,7 +146,7 @@ public sealed class ChromeAiClient
     // inserted, and the prompt sits there unsent. Focus emulation makes the page
     // behave as the focused, active tab without raising its window or taking
     // focus away from whatever the user is actually doing.
-    private static async Task EmulateFocusAsync(CdpPage page, CancellationToken token, Action<string>? diagnostics)
+    private static async Task EmulateFocusAsync(IBrowserPage page, CancellationToken token, Action<string>? diagnostics)
     {
         try
         {
@@ -151,7 +161,7 @@ public sealed class ChromeAiClient
         }
     }
 
-    private static async Task<string> SendToMessengerAsync(CdpPage page, Messenger messenger, string message,
+    private static async Task<string> SendToMessengerAsync(IBrowserPage page, Messenger messenger, string message,
         CancellationToken token, Action<string>? diagnostics)
     {
         diagnostics?.Invoke($"stage=find-{messenger.Name.ToLowerInvariant()}-input");
@@ -182,7 +192,7 @@ public sealed class ChromeAiClient
         return $"Sent {message.Length} characters to the open {messenger.Name} chat.";
     }
 
-    private static async Task PressEnterAsync(CdpPage page, CancellationToken token)
+    private static async Task PressEnterAsync(IBrowserPage page, CancellationToken token)
     {
         await page.CommandAsync("Input.dispatchKeyEvent", new
         {
@@ -196,7 +206,7 @@ public sealed class ChromeAiClient
         }, token);
     }
 
-    private static async Task<bool> ComposerClearedAsync(CdpPage page, Messenger messenger, CancellationToken token)
+    private static async Task<bool> ComposerClearedAsync(IBrowserPage page, Messenger messenger, CancellationToken token)
     {
         var timer = Stopwatch.StartNew();
         while (timer.Elapsed < TimeSpan.FromSeconds(5))
@@ -209,7 +219,7 @@ public sealed class ChromeAiClient
 
     private sealed record Message(string Key, string Text);
     private sealed record Reply(string Key, string Text, bool Busy, string UserKey, bool AfterUser, Message[] Messages);
-    private static async Task<Reply> SnapshotAsync(CdpPage page, string provider, string prompt, CancellationToken token)
+    private static async Task<Reply> SnapshotAsync(IBrowserPage page, string provider, string prompt, CancellationToken token)
     {
         var value = await page.EvaluateAsync(BrowserScripts.Reply(provider, prompt), token);
         return new Reply(value.GetProperty("key").GetString()!, value.GetProperty("text").GetString()!,
@@ -229,7 +239,48 @@ public sealed class ChromeAiClient
     }
 }
 
-internal sealed class CdpPage : IDisposable
+// A page that answers DevTools protocol commands, whether it is a tab in the
+// Chrome window or a WebView2 panel inside Help Me!. Everything that reads or
+// drives a provider page is written against this, so the two engines share one
+// implementation rather than drifting apart.
+internal interface IBrowserPage
+{
+    Task<JsonElement> CommandAsync(string method, object parameters, CancellationToken token);
+}
+
+internal static class BrowserPage
+{
+    public static async Task<JsonElement> EvaluateAsync(this IBrowserPage page, string expression, CancellationToken token)
+    {
+        var result = await page.CommandAsync("Runtime.evaluate",
+            new { expression, returnByValue = true, awaitPromise = true }, token);
+        if (result.TryGetProperty("exceptionDetails", out var details))
+            throw new IOException("The AI page reader failed: " +
+                (details.TryGetProperty("exception", out var exception) && exception.TryGetProperty("description", out var description)
+                    ? description.GetString() : details.GetProperty("text").GetString()));
+        return result.GetProperty("result").GetProperty("value").Clone();
+    }
+
+    public static async Task NavigateAsync(this IBrowserPage page, string url, CancellationToken token)
+    {
+        var result = await page.CommandAsync("Page.navigate", new { url }, token);
+        if (result.TryGetProperty("errorText", out var error)) throw new IOException("Could not open AI destination: " + error.GetString());
+        await Task.Delay(500, token);
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < TimeSpan.FromSeconds(25))
+        {
+            try
+            {
+                if ((await page.EvaluateAsync("document.readyState === 'complete'", token)).GetBoolean()) return;
+            }
+            catch (IOException) when (timer.Elapsed < TimeSpan.FromSeconds(20)) { }
+            await Task.Delay(250, token);
+        }
+        throw new IOException("The AI page did not finish loading.");
+    }
+}
+
+internal sealed class CdpPage : IBrowserPage, IDisposable
 {
     private readonly ClientWebSocket socket = new();
     private int nextId;
@@ -259,32 +310,6 @@ internal sealed class CdpPage : IDisposable
             if (root.TryGetProperty("error", out var error)) throw new IOException("Chrome debugging error: " + error.GetProperty("message").GetString());
             return root.GetProperty("result").Clone();
         }
-    }
-    public async Task<JsonElement> EvaluateAsync(string expression, CancellationToken token)
-    {
-        var result = await CommandAsync("Runtime.evaluate", new { expression, returnByValue = true, awaitPromise = true }, token);
-        if (result.TryGetProperty("exceptionDetails", out var details))
-            throw new IOException("The AI page reader failed: " +
-                (details.TryGetProperty("exception", out var exception) && exception.TryGetProperty("description", out var description)
-                    ? description.GetString() : details.GetProperty("text").GetString()));
-        return result.GetProperty("result").GetProperty("value").Clone();
-    }
-    public async Task NavigateAsync(string url, CancellationToken token)
-    {
-        var result = await CommandAsync("Page.navigate", new { url }, token);
-        if (result.TryGetProperty("errorText", out var error)) throw new IOException("Could not open AI destination: " + error.GetString());
-        await Task.Delay(500, token);
-        var timer = Stopwatch.StartNew();
-        while (timer.Elapsed < TimeSpan.FromSeconds(25))
-        {
-            try
-            {
-                if ((await EvaluateAsync("document.readyState === 'complete'", token)).GetBoolean()) return;
-            }
-            catch (IOException) when (timer.Elapsed < TimeSpan.FromSeconds(20)) { }
-            await Task.Delay(250, token);
-        }
-        throw new IOException("The AI page did not finish loading.");
     }
     public void Dispose() => socket.Dispose();
 }

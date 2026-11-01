@@ -96,6 +96,21 @@ try
     if (layout.StartWithWindows || !layout.TranslationCollapsed || layout.AnswerCollapsed)
         throw new Exception("Startup and collapsed-section settings did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: Windows startup and collapsed section persistence");
+    // The built-in panels are the default, so an older preferences file without
+    // the key must not silently fall back to Chrome.
+    if (AppSettings.Load(preferencePath).BrowserEngine != BrowserEngine.WebView2)
+        throw new Exception("The built-in browser panels must be the default engine.");
+    settings.SaveBrowserEngine(BrowserEngine.Chrome);
+    if (AppSettings.Load(preferencePath).BrowserEngine != BrowserEngine.Chrome)
+        throw new Exception("Browser engine did not round-trip through JSON preferences.");
+    settings.SaveBrowserEngine(BrowserEngine.WebView2);
+    settings.SaveCollapsedSections(translationCollapsed: false, answerCollapsed: false,
+        aiPanelCollapsed: true, chatPanelCollapsed: false);
+    var panels = AppSettings.Load(preferencePath);
+    if (!panels.AiPanelCollapsed || panels.ChatPanelCollapsed)
+        throw new Exception("Panel 05 and 06 collapse states did not round-trip through JSON preferences.");
+    settings.SaveCollapsedSections(false, false);
+    Console.WriteLine("PASS: browser engine and browser panel collapse persistence");
 }
 finally
 {

@@ -80,7 +80,7 @@ Copy-Item -LiteralPath (Join-Path $project 'Package-README.txt') -Destination (J
 
 $pythonDestination = Join-Path $bundle 'python'
 $modelDestination = Join-Path $bundle 'models'
-foreach ($required in 'HelpMe.exe', 'vcruntime140.dll', 'vcomp140.dll', 'python\python.exe', 'translation\worker.py',
+foreach ($required in 'HelpMe.exe', 'vcruntime140.dll', 'vcomp140.dll', 'WebView2Loader.dll', 'python\python.exe', 'translation\worker.py',
     'models\ggml-base.en-q8_0.bin', 'models\nllb-200-distilled-600M-int8\model.bin',
     'Start-HelpMe.cmd', 'README.txt') {
     if (-not (Test-Path -LiteralPath (Join-Path $bundle $required))) {

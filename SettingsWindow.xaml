@@ -26,6 +26,15 @@
         <RadioButton x:Name="WindowsCaptionsOption" Content="Windows 11 Live Captions" GroupName="CaptionMethod"/>
         <TextBlock Text="Read Windows Live Captions through accessibility. Windows may ask for initial setup." Foreground="{DynamicResource Muted}" Margin="23,6,0,20" TextWrapping="Wrap"/>
 
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+        <TextBlock Text="BROWSER" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,12"/>
+        <RadioButton x:Name="WebViewOption" Content="Built-in panels" GroupName="BrowserEngine" IsChecked="True"/>
+        <TextBlock Text="The AI and chat pages run inside Help Me! as panels 05 and 06. Sign in to them once there; no separate browser window opens."
+                   Foreground="{DynamicResource Muted}" Margin="23,6,0,12" TextWrapping="Wrap"/>
+        <RadioButton x:Name="ChromeOption" Content="Chrome window" GroupName="BrowserEngine"/>
+        <TextBlock Text="The pages run in a separate Chrome window on the debugging port below. Choosing the built-in panels closes that window."
+                   Foreground="{DynamicResource Muted}" Margin="23,6,0,20" TextWrapping="Wrap"/>
+
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -63,7 +72,7 @@
                    IsReadOnly="True" IsReadOnlyCaretVisible="False" PreviewKeyDown="TelegramAllShortcutText_PreviewKeyDown"
                    Margin="0,10,0,0" ToolTip="Sends the whole AI answer to Telegram, ignoring any selection"/>
         </Grid>
-        <TextBlock Text="Send uses the conversation open in the selected provider's Chrome tab." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,14,0,14"/>
+        <TextBlock Text="Send uses the conversation already open on the selected provider's page, in panel 05 or in the Chrome window." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,14,0,14"/>
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="Auto-send, sentences per message" VerticalAlignment="Center" Margin="0,0,10,0"/>
           <TextBox x:Name="AutoSendSentencesText" Style="{StaticResource SettingsInput}" Width="56"

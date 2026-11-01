@@ -1,7 +1,8 @@
 <Window x:Class="HelpMe.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="Help Me!" Width="1060" Height="860"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Help Me!" Width="1500" Height="860"
         Icon="{StaticResource AppIcon}" MinWidth="700" MinHeight="300"
         Background="{DynamicResource WindowBackground}" Foreground="{DynamicResource Foreground}" FontFamily="Segoe UI" FontSize="12"
         WindowStyle="None" MouseLeftButtonDown="Window_MouseLeftButtonDown" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
@@ -13,13 +14,15 @@
       <ColumnDefinition x:Name="CaptionColumn" Width="*"/>
       <ColumnDefinition x:Name="AnswerSplitterColumn" Width="5"/>
       <ColumnDefinition x:Name="AnswerColumn" Width="*"/>
+      <ColumnDefinition x:Name="BrowserSplitterColumn" Width="5"/>
+      <ColumnDefinition x:Name="BrowserColumn" Width="1.3*"/>
     </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
       <RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="0"/>
       <RowDefinition Height="26"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <Border Grid.ColumnSpan="3" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1">
+    <Border Grid.ColumnSpan="5" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1">
       <Grid Margin="10,0,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -99,7 +102,7 @@
                   Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                   ShowsPreview="False" ToolTip="Drag to resize the caption and answer panels"/>
 
-    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="0,8,8,0">
+    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="0,8,0,0">
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
@@ -152,6 +155,63 @@
       </Grid>
     </Border>
 
+    <GridSplitter x:Name="BrowserSplitter" Grid.Row="1" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                  ShowsPreview="False" ToolTip="Drag to resize the answer and browser panels"/>
+
+    <Grid Grid.Row="1" Grid.Column="4" x:Name="BrowserPanels" Margin="0,8,8,0">
+      <Grid.RowDefinitions>
+        <RowDefinition x:Name="AiPanelRow" Height="*"/>
+        <RowDefinition x:Name="BrowserSplitterRow" Height="5"/>
+        <RowDefinition x:Name="ChatPanelRow" Height="*"/>
+      </Grid.RowDefinitions>
+      <Border Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Style="{StaticResource SectionHeader}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+                <TextBlock x:Name="AiPanelTitle" Text="05  AI" VerticalAlignment="Center" FontSize="11"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="AiPanelReloadButton" Content="Reload" Click="BrowserReload_Click" Tag="Ai"
+                        ToolTip="Reload the AI page"/>
+                <ToggleButton x:Name="AiPanelCollapseToggle" Style="{StaticResource SectionToggle}" Click="AiPanelCollapse_Click"
+                              Margin="4,0,0,0" ToolTip="Hide or show the AI panel (Ctrl+5)"
+                              AutomationProperties.Name="Hide or show the AI panel"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <wv2:WebView2 Grid.Row="1" x:Name="AiWebView" AutomationProperties.Name="AI web page"/>
+        </Grid>
+      </Border>
+      <GridSplitter x:Name="BrowserRowSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                    ShowsPreview="False" ToolTip="Drag to resize the AI and chat panels"/>
+      <Border Grid.Row="2" Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Style="{StaticResource SectionHeader}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+                <TextBlock x:Name="ChatPanelTitle" Text="06  CHAT" VerticalAlignment="Center" FontSize="11"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ChatPanelReloadButton" Content="Reload" Click="BrowserReload_Click" Tag="Chat"
+                        ToolTip="Reload the chat page"/>
+                <ToggleButton x:Name="ChatPanelCollapseToggle" Style="{StaticResource SectionToggle}" Click="ChatPanelCollapse_Click"
+                              Margin="4,0,0,0" ToolTip="Hide or show the chat panel (Ctrl+6)"
+                              AutomationProperties.Name="Hide or show the chat panel"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <wv2:WebView2 Grid.Row="1" x:Name="ChatWebView" AutomationProperties.Name="Chat web page"/>
+        </Grid>
+      </Border>
+    </Grid>
+
     <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Panel}" Visibility="Collapsed">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -167,11 +227,11 @@
       </Grid>
     </Border>
 
-    <DockPanel Grid.Row="3" Grid.ColumnSpan="3" Margin="12,0" VerticalAlignment="Center">
+    <DockPanel Grid.Row="3" Grid.ColumnSpan="5" Margin="12,0" VerticalAlignment="Center">
       <TextBlock x:Name="SendShortcutHint" DockPanel.Dock="Right" Text="Ctrl+Shift+Z  Send" Foreground="{DynamicResource Muted}" FontSize="11"/>
       <TextBlock x:Name="CaptionSourceHint" Text="Whisper  &#x2022;  Offline captions" Foreground="{DynamicResource Muted}" FontSize="11"/>
     </DockPanel>
-    <TextBlock Grid.Row="4" Grid.ColumnSpan="3" x:Name="Status" Visibility="Collapsed" Foreground="{DynamicResource Error}"
+    <TextBlock Grid.Row="4" Grid.ColumnSpan="5" x:Name="Status" Visibility="Collapsed" Foreground="{DynamicResource Error}"
                TextWrapping="Wrap" Margin="12,0,12,8"/>
   </Grid>
 </Window>

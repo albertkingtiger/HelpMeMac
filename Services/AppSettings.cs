@@ -7,6 +7,7 @@ namespace HelpMe.Services;
 public sealed class AppSettings
 {
     public CaptionMethod CaptionMethod { get; set; } = CaptionMethod.Whisper;
+    public BrowserEngine BrowserEngine { get; set; } = BrowserEngine.WebView2;
     public string WhisperModelPath { get; set; } = "models/ggml-base.en-q8_0.bin";
     public string TranslationModelPath { get; set; } = "models/nllb-200-distilled-600M-int8";
     public string PythonPath { get; set; } = ".venv/Scripts/python.exe";
@@ -28,6 +29,8 @@ public sealed class AppSettings
     public bool StartWithWindows { get; set; } = true;
     public bool TranslationCollapsed { get; set; }
     public bool AnswerCollapsed { get; set; }
+    public bool AiPanelCollapsed { get; set; }
+    public bool ChatPanelCollapsed { get; set; }
     public double WindowWidth { get; set; } = 1060;
     public double WindowHeight { get; set; } = 860;
     public double PcFontSize { get; set; } = 14;
@@ -81,7 +84,10 @@ public sealed class AppSettings
                     result.StartWithWindows = saved.StartWithWindows;
                     result.TranslationCollapsed = saved.TranslationCollapsed;
                     result.AnswerCollapsed = saved.AnswerCollapsed;
+                    result.AiPanelCollapsed = saved.AiPanelCollapsed;
+                    result.ChatPanelCollapsed = saved.ChatPanelCollapsed;
                     result.CaptionMethod = saved.CaptionMethod is CaptionMethod.WindowsLiveCaptions ? saved.CaptionMethod : CaptionMethod.Whisper;
+                    result.BrowserEngine = saved.BrowserEngine is BrowserEngine.Chrome ? BrowserEngine.Chrome : BrowserEngine.WebView2;
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
@@ -105,6 +111,11 @@ public sealed class AppSettings
     {
         if (!Enum.IsDefined(method)) throw new ArgumentOutOfRangeException(nameof(method));
         CaptionMethod = method; SavePreferences();
+    }
+    public void SaveBrowserEngine(BrowserEngine engine)
+    {
+        if (!Enum.IsDefined(engine)) throw new ArgumentOutOfRangeException(nameof(engine));
+        BrowserEngine = engine; SavePreferences();
     }
     public void SaveChromeDebugPort(int port)
     {
@@ -164,10 +175,13 @@ public sealed class AppSettings
         StartWithWindows = enabled;
         SavePreferences();
     }
-    public void SaveCollapsedSections(bool translationCollapsed, bool answerCollapsed)
+    public void SaveCollapsedSections(bool translationCollapsed, bool answerCollapsed,
+        bool aiPanelCollapsed = false, bool chatPanelCollapsed = false)
     {
         TranslationCollapsed = translationCollapsed;
         AnswerCollapsed = answerCollapsed;
+        AiPanelCollapsed = aiPanelCollapsed;
+        ChatPanelCollapsed = chatPanelCollapsed;
         SavePreferences();
     }
     public void SaveWindowSize(double width, double height)
@@ -201,7 +215,7 @@ public sealed class AppSettings
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
             AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut, Theme, CaptionMethod, RestoreShortcut,
             StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
-            AutoSendAnswer, AutoSendSentences),
+            AutoSendAnswer, AutoSendSentences, BrowserEngine, AiPanelCollapsed, ChatPanelCollapsed),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -231,7 +245,9 @@ public sealed class AppSettings
         string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
         bool TranslationCollapsed = false, bool AnswerCollapsed = false,
         string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram",
-        bool AutoSendAnswer = false, int AutoSendSentences = 2);
+        bool AutoSendAnswer = false, int AutoSendSentences = 2,
+        BrowserEngine BrowserEngine = BrowserEngine.WebView2,
+        bool AiPanelCollapsed = false, bool ChatPanelCollapsed = false);
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);

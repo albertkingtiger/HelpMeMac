@@ -35,6 +35,9 @@ public partial class MainWindow : Window
     private AudioSession? mic;
     private TranslationSession? translation;
     private ChromeDebugSession? chrome;
+    private WebViewBrowserSession? webViews;
+    private bool primingPanels;
+    private bool shownWhilePriming;
     private readonly SemaphoreSlim changes = new(1, 1);
     private bool closing;
     private bool closed;
@@ -85,6 +88,9 @@ public partial class MainWindow : Window
     private GridLength translationRowHeight = new(1, GridUnitType.Star);
     private GridLength answerColumnWidth = new(1, GridUnitType.Star);
     private GridLength promptRowHeight = new(100);
+    private GridLength browserColumnWidth = new(1.3, GridUnitType.Star);
+    private GridLength aiPanelRowHeight = new(1, GridUnitType.Star);
+    private GridLength chatPanelRowHeight = new(1, GridUnitType.Star);
     private HwndSource? hotkeySource;
     private bool restoreHotkeyRegistered;
     private const int RestoreHotkeyId = 0x484D;
@@ -131,6 +137,9 @@ public partial class MainWindow : Window
             AnswerCollapseToggle.IsChecked = settings.AnswerCollapsed;
             ApplyTranslationCollapsed();
             ApplyAnswerCollapsed();
+            AiPanelCollapseToggle.IsChecked = settings.AiPanelCollapsed;
+            ChatPanelCollapseToggle.IsChecked = settings.ChatPanelCollapsed;
+            ApplyBrowserEngine();
             SourceInitialized += (_, _) =>
             {
                 hotkeySource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
@@ -152,6 +161,77 @@ public partial class MainWindow : Window
             ShowError(e.Message);
             PcToggle.IsEnabled = TranslationToggle.IsEnabled = MicToggle.IsEnabled = SettingsButton.IsEnabled = false;
         }
+    }
+
+    // The two engines hold the same signed-in sessions, so only one of them
+    // runs: choosing the built-in panels closes the Chrome window.
+    private async Task StartBrowserAsync()
+    {
+        if (settings.BrowserEngine == BrowserEngine.Chrome)
+        {
+            if (chrome is null && !closing) await StartChromeAsync();
+            return;
+        }
+        await CloseChromeForPanelsAsync();
+        if (closing) return;
+        webViews ??= new WebViewBrowserSession(AiWebView, ChatWebView);
+        try { await WhileOnScreenAsync(() => webViews.StartAsync(settings.AiProvider, settings.MessengerTarget)); }
+        catch (Exception error) when (error is IOException or InvalidOperationException)
+        {
+            if (!closing) ShowError(error.Message);
+        }
+    }
+
+    // WebView2 creates its browser process only once its window has been shown,
+    // and Help Me! starts hidden in the tray. Showing the window off the desktop
+    // for those few seconds is invisible, and it goes straight back to the tray
+    // afterwards unless the user asked for it in the meantime.
+    private async Task WhileOnScreenAsync(Func<Task> work)
+    {
+        if (IsVisible) { await work(); return; }
+        var left = Left;
+        var top = Top;
+        primingPanels = true;
+        shownWhilePriming = false;
+        ShowInTaskbar = false;
+        Left = -32000;
+        Top = -32000;
+        Show();
+        try { await work(); }
+        finally
+        {
+            primingPanels = false;
+            if (shownWhilePriming)
+            {
+                PlaceOnScreen(left, top);
+                RestoreFromTray();
+            }
+            else
+            {
+                Hide();
+                PlaceOnScreen(left, top);
+            }
+        }
+    }
+
+    // Left and Top are NaN until Windows has placed the window itself, and NaN
+    // cannot be assigned back, so an unplaced window is centred by hand.
+    private void PlaceOnScreen(double left, double top)
+    {
+        if (!double.IsNaN(left) && !double.IsNaN(top)) { Left = left; Top = top; return; }
+        var work = SystemParameters.WorkArea;
+        Left = work.Left + Math.Max(0, (work.Width - Width) / 2);
+        Top = work.Top + Math.Max(0, (work.Height - Height) / 2);
+    }
+
+    // Closes the managed Chrome window whether this run started it or an earlier
+    // one left it open on the debugging port.
+    private async Task CloseChromeForPanelsAsync()
+    {
+        if (chrome is not null) { await chrome.CloseAsync(); chrome = null; return; }
+        if (!await ChromeDebugSession.IsDebugEndpointAvailableAsync(settings.ChromeDebugPort)) return;
+        var running = new ChromeDebugSession(settings.ChromeDebugPort);
+        await running.CloseAsync();
     }
 
     private async Task StartChromeAsync()
@@ -433,7 +513,83 @@ public partial class MainWindow : Window
     private void SaveCollapsedSections()
     {
         if (initialized)
-            settings.SaveCollapsedSections(TranslationCollapseToggle.IsChecked == true, AnswerCollapseToggle.IsChecked == true);
+            settings.SaveCollapsedSections(TranslationCollapseToggle.IsChecked == true, AnswerCollapseToggle.IsChecked == true,
+                AiPanelCollapseToggle.IsChecked == true, ChatPanelCollapseToggle.IsChecked == true);
+    }
+
+    // Null while a browser is ready to take a message, otherwise what to tell the
+    // user about the engine they actually chose.
+    private string? BrowserUnavailable => settings.BrowserEngine == BrowserEngine.WebView2
+        ? webViews?.IsReady == true ? null : "The built-in browser panels are not ready yet."
+        : chrome is not null ? null : "Chrome debug session is not available.";
+
+    private Task<string> BrowserSendAsync(string text, string provider, Action<string>? progress, CancellationToken token)
+        => settings.BrowserEngine == BrowserEngine.WebView2
+            ? webViews!.SendPromptAsync(text, provider, progress, token)
+            : chrome!.SendPromptAsync(text, provider, progress, token);
+
+    private void AiPanelCollapse_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyBrowserPanelsCollapsed();
+        SaveCollapsedSections();
+    }
+
+    private void ChatPanelCollapse_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyBrowserPanelsCollapsed();
+        SaveCollapsedSections();
+    }
+
+    private void BrowserReload_Click(object sender, RoutedEventArgs e)
+        => webViews?.Reload(((Button)sender).Tag as string == "Ai");
+
+    // The whole browser column belongs to the built-in engine: with Chrome
+    // selected the pages live in its own window and the column is not shown.
+    private void ApplyBrowserEngine()
+    {
+        var panels = settings.BrowserEngine == BrowserEngine.WebView2;
+        BrowserPanels.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSplitter.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
+        if (panels)
+        {
+            BrowserColumn.Width = browserColumnWidth;
+            BrowserSplitterColumn.Width = new GridLength(5);
+            ApplyBrowserPanelsCollapsed();
+            // Three columns need the room; a window left at the two-column width
+            // would squeeze the web pages into a strip.
+            if (Width < 1300) Width = 1300;
+        }
+        else
+        {
+            if (BrowserColumn.Width.IsStar) browserColumnWidth = BrowserColumn.Width;
+            BrowserColumn.Width = new GridLength(0);
+            BrowserSplitterColumn.Width = new GridLength(0);
+        }
+        AiPanelTitle.Text = $"05  {settings.AiProvider.ToUpperInvariant()}";
+        ChatPanelTitle.Text = $"06  {settings.MessengerTarget.ToUpperInvariant()}";
+    }
+
+    private void ApplyBrowserPanelsCollapsed()
+    {
+        var aiCollapsed = AiPanelCollapseToggle.IsChecked == true;
+        var chatCollapsed = ChatPanelCollapseToggle.IsChecked == true;
+        if (aiCollapsed)
+        {
+            if (AiPanelRow.Height.IsStar) aiPanelRowHeight = AiPanelRow.Height;
+            AiPanelRow.Height = GridLength.Auto;
+        }
+        else AiPanelRow.Height = aiPanelRowHeight;
+        if (chatCollapsed)
+        {
+            if (ChatPanelRow.Height.IsStar) chatPanelRowHeight = ChatPanelRow.Height;
+            ChatPanelRow.Height = GridLength.Auto;
+        }
+        else ChatPanelRow.Height = chatPanelRowHeight;
+        AiWebView.Visibility = aiCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        ChatWebView.Visibility = chatCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        var both = aiCollapsed || chatCollapsed;
+        BrowserSplitterRow.Height = new GridLength(both ? 0 : 5);
+        BrowserRowSplitter.Visibility = both ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // A collapsed section keeps its header bar so it can be brought back with the
@@ -523,7 +679,7 @@ public partial class MainWindow : Window
     {
         var startupError = StartupRegistration.Apply(settings.StartWithWindows);
         if (startupError is not null) ShowError(startupError);
-        if (chrome is null && !closing) await StartChromeAsync();
+        if (!closing) await StartBrowserAsync();
         if (closing || PcToggle.IsChecked == true) return;
         PcToggle.IsChecked = true;
         try
@@ -646,6 +802,9 @@ public partial class MainWindow : Window
 
     private void RestoreFromTray()
     {
+        // Asked for while the window sits off the desktop priming the panels:
+        // that run puts it back where it belongs and shows it when it finishes.
+        if (primingPanels) { shownWhilePriming = true; return; }
         ShowInTaskbar = true;
         Show();
         WindowState = WindowState.Normal;
@@ -797,13 +956,12 @@ public partial class MainWindow : Window
     // both come through here, so neither drives the tab while the other holds it.
     private async Task<string?> DeliverToMessengerAsync(string message)
     {
-        if (chrome is null) return "Chrome debug session is not available.";
-        var browser = chrome;
+        if (BrowserUnavailable is { } unavailable) return unavailable;
         var target = settings.MessengerTarget;
         try
         {
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            await Task.Run(() => browser.SendPromptAsync(message, target, null, cancellation.Token));
+            await Task.Run(() => BrowserSendAsync(message, target, null, cancellation.Token));
             return null;
         }
         catch (OperationCanceledException)
@@ -914,9 +1072,16 @@ public partial class MainWindow : Window
         ToggleButton section;
         if (key is Key.D2 or Key.NumPad2) section = TranslationCollapseToggle;
         else if (key is Key.D4 or Key.NumPad4) section = AnswerCollapseToggle;
+        else if (key is Key.D5 or Key.NumPad5) section = AiPanelCollapseToggle;
+        else if (key is Key.D6 or Key.NumPad6) section = ChatPanelCollapseToggle;
         else return false;
+        // The browser panels only exist for the built-in engine.
+        if (section != TranslationCollapseToggle && section != AnswerCollapseToggle &&
+            settings.BrowserEngine != BrowserEngine.WebView2) return false;
         section.IsChecked = section.IsChecked != true;
-        if (section == TranslationCollapseToggle) ApplyTranslationCollapsed(); else ApplyAnswerCollapsed();
+        if (section == TranslationCollapseToggle) ApplyTranslationCollapsed();
+        else if (section == AnswerCollapseToggle) ApplyAnswerCollapsed();
+        else ApplyBrowserPanelsCollapsed();
         SaveCollapsedSections();
         return true;
     }
@@ -998,7 +1163,7 @@ public partial class MainWindow : Window
     private async Task SendAnswerAsync()
     {
         if (closing || answerCancellation is not null) return;
-        if (chrome is null) { ShowError("Chrome debug session is not available."); return; }
+        if (BrowserUnavailable is { } unavailable) { ShowError(unavailable); return; }
         string prompt;
         try { prompt = GetAnswerPrompt(); }
         catch (InvalidOperationException error) { ShowError(error.Message); return; }
@@ -1008,7 +1173,6 @@ public partial class MainWindow : Window
         answerCancellation = cancellation;
         AnswerSendButton.IsEnabled = false;
         var outputVersion = ++answerOutputVersion;
-        var browser = chrome;
         var provider = settings.AiProvider;
         Status.Visibility = Visibility.Collapsed;
         void Display(string text) => DisplayAnswer(text, outputVersion);
@@ -1021,7 +1185,7 @@ public partial class MainWindow : Window
         UpdateAutoSendHint();
         try
         {
-            var response = await Task.Run(() => browser.SendPromptAsync(prompt, provider, Display, cancellation.Token));
+            var response = await Task.Run(() => BrowserSendAsync(prompt, provider, Display, cancellation.Token));
             Display(response);
             if (autoSendActive && outputVersion == answerOutputVersion)
             {
@@ -1138,6 +1302,10 @@ public partial class MainWindow : Window
         await ChangeAsync(async () =>
         {
             var previousPort = settings.ChromeDebugPort;
+            var previousEngine = settings.BrowserEngine;
+            var previousProvider = settings.AiProvider;
+            var previousMessenger = settings.MessengerTarget;
+            settings.SaveBrowserEngine(dialog.SelectedBrowserEngine);
             settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
             settings.SaveSendShortcut(dialog.SendShortcut);
@@ -1183,11 +1351,25 @@ public partial class MainWindow : Window
                 if (pc is not null) { ++pcGeneration; await pc.DisposeAsync(); pc = null; }
                 await UpdatePcAsync();
             }
-            if (previousPort != dialog.ChromeDebugPort)
+            ApplyBrowserEngine();
+            if (previousEngine != settings.BrowserEngine)
+            {
+                answerCancellation?.Cancel();
+                // Switching either way starts the chosen engine; the panels keep
+                // their pages loaded but take no message while Chrome is chosen.
+                await StartBrowserAsync();
+            }
+            else if (settings.BrowserEngine == BrowserEngine.Chrome && previousPort != dialog.ChromeDebugPort)
             {
                 answerCancellation?.Cancel();
                 if (chrome is not null) { await chrome.DisposeAsync(); chrome = null; }
                 await StartChromeAsync();
+            }
+            else if (settings.BrowserEngine == BrowserEngine.WebView2 &&
+                     (previousProvider != settings.AiProvider || previousMessenger != settings.MessengerTarget))
+            {
+                // Only the panel whose page actually changed is reloaded.
+                webViews?.Navigate(settings.AiProvider, settings.MessengerTarget);
             }
         });
     }

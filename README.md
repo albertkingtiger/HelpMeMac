@@ -77,9 +77,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 
 This writes `dist/HelpMe-Setup-<version>.exe` and a SHA-256 checksum. The installer contains the self-contained .NET app, Python and its dependencies, the Visual C++ runtime DLLs, all Whisper models and the Korean NLLB model. It installs per user under `%LOCALAPPDATA%\Programs\HelpMe` without administrator rights, and the uninstaller removes the program and its Windows startup entry while leaving settings and Chrome sign-ins in place. Google Chrome is not included. The script uses an installed Inno Setup 6, or downloads the Tools.InnoSetup package from NuGet into `.tools/innosetup` if there is none.
 
+## Browser: built-in panels or Chrome
+
+The AI and chat web clients run in one of two places, chosen under **Browser** in Settings.
+
+**Built-in panels** (the default) host them inside Help Me! itself: panel **05** shows the AI provider and panel **06** shows the chat destination, in a column on the right. They run on the Microsoft Edge WebView2 runtime, which ships with Windows 11, so nothing extra is installed and no second browser window appears. Their profile lives in `%LOCALAPPDATA%\HelpMe\WebView2`, separate from the Chrome one, so each engine is signed in once on its own. **Ctrl+5** and **Ctrl+6** collapse the two panels to their headers; **Reload** in a panel header reloads that page when a site gets stuck.
+
+Choosing the built-in panels closes the managed Chrome window, including one an earlier run left open on the debugging port. Choosing **Chrome window** goes back to driving Chrome over that port, and the browser column disappears.
+
+Both engines drive the pages through the same DevTools protocol code, so sending, reading the reply and auto-send behave identically either way.
+
+WebView2 creates its browser process only once its window has been shown, and Help Me! starts hidden in the tray. At startup the window is therefore shown off the desktop for the moment the panels need to come up, then returned to the tray; if the restore shortcut or the tray icon is used during those seconds, the window is placed back on screen instead of hidden.
+
 ## AI Answer panel
 
-Help Me! opens a dedicated Chrome window containing ChatGPT, Claude, Telegram Web and WhatsApp Web. Sign in there once; its profile is kept in `%LOCALAPPDATA%\HelpMe\ChromeDebug` so login state survives restarts. This optional AI feature requires internet. Captioning and local translation remain separate.
+With **Chrome window** selected, Help Me! opens a dedicated Chrome window containing ChatGPT, Claude, Telegram Web and WhatsApp Web. Sign in there once; its profile is kept in `%LOCALAPPDATA%\HelpMe\ChromeDebug` so login state survives restarts. This optional AI feature requires internet. Captioning and local translation remain separate.
 
 In Settings, select the AI provider. Open the conversation you want in that provider's managed Chrome tab. **Send** uses that existing page without selecting a project/session, reloading, or creating a new conversation. **Open Chrome** / **Close Chrome** next to the debug port starts or stops that browser window without leaving Settings; the label follows the port in the field. Closing works even for a Chrome that was already running when Help Me! started. Quitting Help Me! still only closes a browser it started itself.
 

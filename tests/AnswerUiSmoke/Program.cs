@@ -145,6 +145,56 @@ internal static class Program
                     throw new Exception("Only plain Ctrl+2 and Ctrl+4 may toggle a section.");
                 Console.WriteLine("PASS: Ctrl+2 and Ctrl+4 toggle their sections and ignore other combinations");
 
+                // Panels 05 and 06 hold the AI and chat pages for the built-in
+                // browser, and exist only while that engine is chosen.
+                var engineSettings = (AppSettings)typeof(MainWindow)
+                    .GetField("settings", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
+                var applyEngine = typeof(MainWindow).GetMethod("ApplyBrowserEngine", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var browserPanels = (Grid)window.FindName("BrowserPanels");
+                var browserColumn = (ColumnDefinition)window.FindName("BrowserColumn");
+                var aiPanelRow = (RowDefinition)window.FindName("AiPanelRow");
+                var aiPanelToggle = (ToggleButton)window.FindName("AiPanelCollapseToggle");
+                var chatPanelToggle = (ToggleButton)window.FindName("ChatPanelCollapseToggle");
+                var aiWebView = (UIElement)window.FindName("AiWebView");
+                var chatWebView = (UIElement)window.FindName("ChatWebView");
+                var aiTitle = (TextBlock)window.FindName("AiPanelTitle");
+                var chatTitle = (TextBlock)window.FindName("ChatPanelTitle");
+                var savedEngine = engineSettings.BrowserEngine;
+                engineSettings.BrowserEngine = BrowserEngine.WebView2;
+                engineSettings.AiProvider = "Claude";
+                engineSettings.MessengerTarget = "WhatsApp";
+                applyEngine.Invoke(window, null);
+                if (browserPanels.Visibility != Visibility.Visible || !browserColumn.Width.IsStar)
+                    throw new Exception("The built-in engine must show the browser column.");
+                if (aiTitle.Text != "05  CLAUDE" || chatTitle.Text != "06  WHATSAPP")
+                    throw new Exception("Panel titles must name the provider and destination in use.");
+                if (!Press(Key.D5, ModifierKeys.Control) || aiPanelToggle.IsChecked != true ||
+                    aiWebView.Visibility != Visibility.Collapsed || aiPanelRow.Height.IsStar)
+                    throw new Exception("Ctrl+5 must collapse panel 05 to its header.");
+                if (!Press(Key.NumPad5, ModifierKeys.Control) || aiPanelToggle.IsChecked != false ||
+                    aiWebView.Visibility != Visibility.Visible || !aiPanelRow.Height.IsStar)
+                    throw new Exception("Ctrl+5 must restore panel 05 and the height it had.");
+                if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != true ||
+                    chatWebView.Visibility != Visibility.Collapsed)
+                    throw new Exception("Ctrl+6 must collapse panel 06.");
+                if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != false)
+                    throw new Exception("Ctrl+6 must expand panel 06 again.");
+                // With Chrome chosen the pages live in its own window, so the
+                // column and its shortcuts have nothing to act on.
+                engineSettings.BrowserEngine = BrowserEngine.Chrome;
+                applyEngine.Invoke(window, null);
+                if (browserPanels.Visibility != Visibility.Collapsed || browserColumn.Width.Value != 0)
+                    throw new Exception("Choosing Chrome must give the browser column's width back.");
+                if (Press(Key.D5, ModifierKeys.Control) || Press(Key.D6, ModifierKeys.Control))
+                    throw new Exception("Ctrl+5 and Ctrl+6 must do nothing while Chrome is the browser.");
+                engineSettings.BrowserEngine = BrowserEngine.WebView2;
+                applyEngine.Invoke(window, null);
+                if (!browserColumn.Width.IsStar)
+                    throw new Exception("Switching back must restore the browser column's width.");
+                engineSettings.BrowserEngine = savedEngine;
+                applyEngine.Invoke(window, null);
+                Console.WriteLine("PASS: panels 05 and 06 follow the browser engine, their titles and Ctrl+5/Ctrl+6");
+
                 // Send Telegram forwards the answer, or just the part selected in it.
                 var telegramMessage = typeof(MainWindow).GetMethod("GetTelegramMessage", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 string Message() => (string)telegramMessage.Invoke(window, new object[] { false })!;
