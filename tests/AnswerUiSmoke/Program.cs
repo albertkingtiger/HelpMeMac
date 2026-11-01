@@ -120,14 +120,34 @@ internal static class Program
                     translation.Visibility != Visibility.Visible)
                     throw new Exception("Expanding 02 must restore the dragged row size.");
 
+                // Panel 05 shares this column, so collapsing 04 releases its own
+                // row and leaves the column's width to the page below it.
+                var answerPanelRow = (RowDefinition)window.FindName("AnswerPanelRow");
+                var aiPanelRowShared = (RowDefinition)window.FindName("AiPanelRow");
+                var aiWebViewShared = (UIElement)window.FindName("AiWebView");
                 ClickCollapse(collapseAnswer, answerToggle);
-                if (answerColumn.Width != GridLength.Auto || promptRow.Height.Value != 0 ||
+                if (answerPanelRow.Height != GridLength.Auto || promptRow.Height.Value != 0 ||
                     answer.Visibility != Visibility.Collapsed || answerActions.Visibility != Visibility.Collapsed)
-                    throw new Exception("Collapsing 04 must release its column and narrow the leftover header.");
+                    throw new Exception("Collapsing 04 must release its row and narrow the leftover header.");
+                if (!answerColumn.Width.IsStar || !aiPanelRowShared.Height.IsStar ||
+                    aiWebViewShared.Visibility != Visibility.Visible)
+                    throw new Exception("Collapsing 04 must leave panel 05 and the column it shares alone.");
                 ClickCollapse(collapseAnswer, answerToggle);
                 if (!answerColumn.Width.IsStar || promptRow.Height.Value != 100 ||
                     answer.Visibility != Visibility.Visible || answerActions.Visibility != Visibility.Visible)
                     throw new Exception("Expanding 04 must restore the prompt, answer and header actions.");
+                // With both of the column's panels collapsed there is nothing
+                // left to show, so the width does go back to the rest.
+                var aiToggleShared = (ToggleButton)window.FindName("AiPanelCollapseToggle");
+                var collapseAi = typeof(MainWindow).GetMethod("AiPanelCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                ClickCollapse(collapseAnswer, answerToggle);
+                ClickCollapse(collapseAi, aiToggleShared);
+                if (answerColumn.Width != GridLength.Auto)
+                    throw new Exception("With 04 and 05 both collapsed the column's width must be released.");
+                ClickCollapse(collapseAi, aiToggleShared);
+                if (!answerColumn.Width.IsStar)
+                    throw new Exception("Showing panel 05 again must take the column's width back.");
+                ClickCollapse(collapseAnswer, answerToggle);
                 Console.WriteLine("PASS: sections 02 and 04 collapse to their headers and restore dragged sizes");
 
                 var tryToggle = typeof(MainWindow).GetMethod("TryToggleSection", BindingFlags.NonPublic | BindingFlags.Instance)!;

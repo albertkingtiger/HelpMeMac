@@ -90,6 +90,7 @@ public partial class MainWindow : Window
     private GridLength promptRowHeight = new(100);
     private GridLength browserColumnWidth = new(1.3, GridUnitType.Star);
     private GridLength aiPanelRowHeight = new(1, GridUnitType.Star);
+    private GridLength answerPanelRowHeight = new(1, GridUnitType.Star);
     private HwndSource? hotkeySource;
     private bool restoreHotkeyRegistered;
     private const int RestoreHotkeyId = 0x484D;
@@ -571,6 +572,7 @@ public partial class MainWindow : Window
             AiPanelRow.Height = new GridLength(0);
             AiPanelSplitterRow.Height = new GridLength(0);
             AiPanelSplitter.Visibility = Visibility.Collapsed;
+            ApplyAnswerColumnWidth();
         }
         AiPanelTitle.Text = $"05  {settings.AiProvider.ToUpperInvariant()}";
         ChatPanelTitle.Text = $"06  {settings.MessengerTarget.ToUpperInvariant()}";
@@ -590,6 +592,8 @@ public partial class MainWindow : Window
         AiPanelSplitterRow.Height = new GridLength(collapsed ? 0 : 5);
         AiPanelSplitter.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         AiWebView.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        AiPanelReloadButton.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        ApplyAnswerColumnWidth();
     }
 
     // Panel 06 owns the right column, so collapsing it gives the width back.
@@ -631,24 +635,23 @@ public partial class MainWindow : Window
         var collapsed = AnswerCollapseToggle.IsChecked == true;
         if (collapsed)
         {
-            if (AnswerColumn.Width.IsStar) answerColumnWidth = AnswerColumn.Width;
+            if (AnswerPanelRow.Height.IsStar) answerPanelRowHeight = AnswerPanelRow.Height;
             if (PromptRow.Height.Value > 0) promptRowHeight = PromptRow.Height;
-            AnswerColumn.Width = GridLength.Auto;
-            AnswerSplitterColumn.Width = new GridLength(0);
+            // Only this panel's own row goes: panel 05 shares the column and
+            // takes the height back, so the column itself must stay as it is.
+            AnswerPanelRow.Height = GridLength.Auto;
             PromptRow.Height = new GridLength(0);
             PromptSplitterRow.Height = new GridLength(0);
             AnswerRow.Height = GridLength.Auto;
         }
         else
         {
-            AnswerColumn.Width = answerColumnWidth;
-            AnswerSplitterColumn.Width = new GridLength(5);
+            AnswerPanelRow.Height = answerPanelRowHeight;
             PromptRow.Height = promptRowHeight;
             PromptSplitterRow.Height = new GridLength(8);
             AnswerRow.Height = new GridLength(1, GridUnitType.Star);
         }
         var visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-        AnswerSplitter.Visibility = visibility;
         // Hiding the header actions narrows the leftover strip to the title and
         // this toggle. Ctrl+Shift+Z still sends while the section is collapsed.
         AnswerHeaderActions.Visibility = visibility;
@@ -656,6 +659,26 @@ public partial class MainWindow : Window
         PromptSplitter.Visibility = visibility;
         AnswerText.Visibility = visibility;
         TelegramBar.Visibility = visibility;
+        ApplyAnswerColumnWidth();
+    }
+
+    // The middle column carries panel 04 and panel 05. Its width is only given
+    // back to the rest of the window once neither of them has anything to show.
+    private void ApplyAnswerColumnWidth()
+    {
+        var aiShowing = settings.BrowserEngine == BrowserEngine.WebView2 && AiPanelCollapseToggle.IsChecked != true;
+        var answerShowing = AnswerCollapseToggle.IsChecked != true;
+        if (answerShowing || aiShowing)
+        {
+            AnswerColumn.Width = answerColumnWidth;
+            AnswerSplitterColumn.Width = new GridLength(5);
+            AnswerSplitter.Visibility = Visibility.Visible;
+            return;
+        }
+        if (AnswerColumn.Width.IsStar) answerColumnWidth = AnswerColumn.Width;
+        AnswerColumn.Width = GridLength.Auto;
+        AnswerSplitterColumn.Width = new GridLength(0);
+        AnswerSplitter.Visibility = Visibility.Collapsed;
     }
 
     // Background start. The window is deliberately never shown: calling Hide()
