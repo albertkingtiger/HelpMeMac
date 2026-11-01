@@ -61,9 +61,14 @@ def main():
             for offset in range(0, len(encoded), 240):
                 chunk = tokenizer.build_inputs_with_special_tokens(encoded[offset:offset + 240])
                 tokens = tokenizer.convert_ids_to_tokens(chunk)
+                # Short caption fragments should not be allowed to generate a
+                # document-sized answer. NLLB can otherwise loop on phrases
+                # such as "yes" or "2 or 3 PM" hundreds of times.
+                output_limit = min(384, max(48, 3 * len(chunk)))
                 result = translator.translate_batch(
                     [tokens], target_prefix=[["kor_Hang"]], beam_size=4,
-                    max_decoding_length=512,
+                    max_decoding_length=output_limit,
+                    no_repeat_ngram_size=3, repetition_penalty=1.1,
                 )
                 target = result[0].hypotheses[0]
                 if target and target[0] == "kor_Hang":

@@ -5,5 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-  <ItemGroup><Compile Include="../../Services/ChromeAiClient.cs" Link="ChromeAiClient.cs" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../Services/ChromeAiClient.cs" Link="ChromeAiClient.cs" />
+    <Compile Include="../../Services/ChromeDebugSession.cs" Link="ChromeDebugSession.cs" />
+  </ItemGroup>
 </Project>

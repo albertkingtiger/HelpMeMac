@@ -7,6 +7,24 @@ using System.Text.Json;
 
 namespace HelpMe.Services;
 
+// A chat destination driven through its web client in the managed Chrome window.
+// These are delivery targets, not assistants: nothing is read back.
+public sealed record Messenger(string Name, string Host, string Url, string Composer, string Send)
+{
+    public static readonly Messenger Telegram = new("Telegram", "web.telegram.org", "https://web.telegram.org/k/",
+        ".input-message-input[contenteditable=\"true\"], #editable-message-text[contenteditable=\"true\"]",
+        "button.btn-send:not(.record), button.send, button[aria-label='Send Message']");
+
+    public static readonly Messenger WhatsApp = new("WhatsApp", "web.whatsapp.com", "https://web.whatsapp.com/",
+        "footer div[contenteditable=\"true\"], [data-testid=\"conversation-compose-box-input\"]",
+        "button[data-testid='send'], span[data-icon='send'], button[aria-label='Send']");
+
+    public static readonly IReadOnlyList<Messenger> All = new[] { Telegram, WhatsApp };
+
+    public static Messenger? Find(string? name)
+        => All.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+}
+
 // All browser work is asynchronous. No cookies, tokens, or private service APIs are used.
 public sealed class ChromeAiClient
 {
@@ -14,7 +32,8 @@ public sealed class ChromeAiClient
     public static async Task<string> SendAsync(int port, string provider,
         string prompt, Action<string>? progress, CancellationToken cancellation)
     {
-        var host = provider == "Claude" ? "claude.ai" : "chatgpt.com";
+        var messenger = Messenger.Find(provider);
+        var host = messenger?.Host ?? (provider == "Claude" ? "claude.ai" : "chatgpt.com");
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         var json = await http.GetStringAsync($"http://127.0.0.1:{port}/json/list", cancellation);
         using var pages = JsonDocument.Parse(json);
@@ -49,6 +68,10 @@ public sealed class ChromeAiClient
         using var page = new CdpPage();
         diagnostics?.Invoke("stage=connect");
         await page.ConnectAsync(socketUri, token);
+        await EmulateFocusAsync(page, token, diagnostics);
+        // A messenger is a destination, not an assistant: the text is delivered to
+        // the open chat and there is no reply to wait for or read back.
+        if (Messenger.Find(provider) is { } target) return await SendToMessengerAsync(page, target, prompt, token, diagnostics);
         diagnostics?.Invoke("stage=find-input");
         await WaitForAsync(async () => (await page.EvaluateAsync(BrowserScripts.ComposerReady, token)).GetBoolean(),
             "The AI message input is unavailable. Sign in to the selected provider and open a conversation in Chrome.", token);
@@ -106,6 +129,82 @@ public sealed class ChromeAiClient
                 return lastText;
             }
         }
+    }
+
+    // A tab the user is not looking at is throttled: Chrome stops its animation
+    // frames, so a composer's send button may never re-enable after the text is
+    // inserted, and the prompt sits there unsent. Focus emulation makes the page
+    // behave as the focused, active tab without raising its window or taking
+    // focus away from whatever the user is actually doing.
+    private static async Task EmulateFocusAsync(CdpPage page, CancellationToken token, Action<string>? diagnostics)
+    {
+        try
+        {
+            await page.CommandAsync("Emulation.setFocusEmulationEnabled", new { enabled = true }, token);
+            diagnostics?.Invoke("focus=emulated");
+        }
+        catch (IOException)
+        {
+            // The domain is experimental; without it the send still works as long
+            // as the provider tab happens to be the active one.
+            diagnostics?.Invoke("focus=unavailable");
+        }
+    }
+
+    private static async Task<string> SendToMessengerAsync(CdpPage page, Messenger messenger, string message,
+        CancellationToken token, Action<string>? diagnostics)
+    {
+        diagnostics?.Invoke($"stage=find-{messenger.Name.ToLowerInvariant()}-input");
+        await WaitForAsync(async () => (await page.EvaluateAsync(BrowserScripts.MessengerComposerReady(messenger), token)).GetBoolean(),
+            $"The {messenger.Name} message box is unavailable. Open the chat you want in Help Me!'s Chrome window and sign in first.", token);
+        var prepared = await page.EvaluateAsync(BrowserScripts.PrepareMessengerInput(messenger, message), token);
+        diagnostics?.Invoke("input=" + prepared.GetString());
+        if (prepared.GetString() is not ("ready" or "reuse"))
+            throw new IOException($"The {messenger.Name} message box already contains an unsent draft. Send or clear that draft in Chrome first.");
+        if (prepared.GetString() == "ready")
+        {
+            diagnostics?.Invoke("stage=insert-text");
+            await page.CommandAsync("Input.insertText", new { text = message }, token);
+        }
+        diagnostics?.Invoke("stage=messenger-send");
+        await PressEnterAsync(page, token);
+        // The composer emptying is the confirmation that Telegram accepted it.
+        // The button is only a fallback: until the box has text it is the
+        // voice-record control, and a user may have rebound Enter to a newline.
+        if (!await ComposerClearedAsync(page, messenger, token))
+        {
+            diagnostics?.Invoke("stage=messenger-send-button");
+            await page.EvaluateAsync(BrowserScripts.ClickMessengerSend(messenger), token);
+            if (!await ComposerClearedAsync(page, messenger, token))
+                throw new IOException($"{messenger.Name} did not accept the message. Check the Chrome tab for the open chat or a sign-in prompt.");
+        }
+        diagnostics?.Invoke($"completed chars={message.Length}");
+        return $"Sent {message.Length} characters to the open {messenger.Name} chat.";
+    }
+
+    private static async Task PressEnterAsync(CdpPage page, CancellationToken token)
+    {
+        await page.CommandAsync("Input.dispatchKeyEvent", new
+        {
+            type = "keyDown", key = "Enter", code = "Enter", text = "\r",
+            windowsVirtualKeyCode = 13, nativeVirtualKeyCode = 13
+        }, token);
+        await page.CommandAsync("Input.dispatchKeyEvent", new
+        {
+            type = "keyUp", key = "Enter", code = "Enter",
+            windowsVirtualKeyCode = 13, nativeVirtualKeyCode = 13
+        }, token);
+    }
+
+    private static async Task<bool> ComposerClearedAsync(CdpPage page, Messenger messenger, CancellationToken token)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            if ((await page.EvaluateAsync(BrowserScripts.MessengerComposerEmpty(messenger), token)).GetBoolean()) return true;
+            await Task.Delay(250, token);
+        }
+        return false;
     }
 
     private sealed record Message(string Key, string Text);
@@ -198,6 +297,52 @@ internal static class BrowserScripts
             .find(e => visible(e) && !e.disabled && e.getAttribute('contenteditable') !== 'false');
         """;
     public static string ComposerReady => "(() => {" + Helpers + "return !!composer(); })()";
+
+    // Telegram and WhatsApp are driven the same way; only their selectors differ.
+    // Telegram Web K uses .input-message-input and the older /a/ client uses
+    // #editable-message-text. WhatsApp Web's composer is matched through its footer:
+    // its chat search box is also a contenteditable and comes first in the document.
+    // Both keep offscreen copies in the DOM, so visibility decides.
+    public static string MessengerHelpers(Messenger messenger) => $$"""
+        const visible = e => e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+        const composer = () => [...document.querySelectorAll({{JsonSerializer.Serialize(messenger.Composer)}})]
+            .find(e => visible(e) && e.getAttribute('contenteditable') !== 'false');
+        const draft = e => (e.innerText ?? e.value ?? '').replace(/​/g, '').trim();
+        const sendButton = () => {
+            for (const found of document.querySelectorAll({{JsonSerializer.Serialize(messenger.Send)}})) {
+                const b = found.closest('button') ?? found;
+                if (visible(b) && !b.disabled && b.getAttribute('aria-disabled') !== 'true') return b;
+            }
+            return null;
+        };
+        """;
+    public static string MessengerComposerReady(Messenger messenger)
+        => "(() => {" + MessengerHelpers(messenger) + "return !!composer(); })()";
+    public static string MessengerComposerEmpty(Messenger messenger)
+        => "(() => {" + MessengerHelpers(messenger) + """
+        const e = composer();
+        return !e || draft(e).length === 0;
+        })()
+        """;
+    public static string PrepareMessengerInput(Messenger messenger, string message)
+        => "(() => {" + MessengerHelpers(messenger) + $$"""
+        const e = composer();
+        if (!e) return 'missing';
+        const current = draft(e);
+        const message = {{JsonSerializer.Serialize(message.Trim())}};
+        if (current && current !== message) return 'draft';
+        e.focus();
+        return current === message ? 'reuse' : 'ready';
+        })()
+        """;
+    public static string ClickMessengerSend(Messenger messenger)
+        => "(() => {" + MessengerHelpers(messenger) + """
+        const b = sendButton();
+        if (!b) return false;
+        b.click(); return true;
+        })()
+        """;
+
     public static string PrepareInput(string prompt) => "(() => {" + Helpers + $$"""
         const e = composer();
         if (!e) return 'missing';
@@ -216,6 +361,7 @@ internal static class BrowserScripts
         b.click(); return true;
         })()
         """;
+
     public static string Reply(string provider, string prompt) => "(() => {" + Helpers + $$"""
         const normalize = s => (s || '').replace(/\s+/g, ' ').trim();
         const userSelector = '[data-message-author-role="user"], [data-testid="user-message"], [data-turn="user"]';

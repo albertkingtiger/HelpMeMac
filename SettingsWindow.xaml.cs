@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Globalization;
@@ -11,38 +12,93 @@ namespace HelpMe;
 
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow(CaptionMethod method) : this(method, 9111, "ChatGPT", "", "") { }
-    public SettingsWindow(CaptionMethod method, int chromePort, string provider = "ChatGPT", string project = "", string session = "",
-        double pcFontSize = 14, string pcTextColor = "#CCCCCC", string pcCaretColor = "#AEAFAD",
-        double translationFontSize = 14, string translationTextColor = "#CCCCCC",
-        double answerInputFontSize = 14, string answerInputTextColor = "#CCCCCC",
-        double answerFontSize = 14, string answerTextColor = "#CCCCCC",
-        string sendShortcut = "Ctrl+Shift+Z")
+    // Preview rendering builds a dialog from defaults without reading the user's files.
+    public SettingsWindow(CaptionMethod method, int chromePort = 9111, string theme = "Dark")
+        : this(new AppSettings { CaptionMethod = method, ChromeDebugPort = chromePort, Theme = theme }) { }
+
+    public SettingsWindow(AppSettings settings)
     {
         InitializeComponent();
-        WhisperOption.IsChecked = true;
-        ChromePortText.Text = chromePort.ToString();
-        ProviderCombo.ItemsSource = new[] { "ChatGPT", "Claude" };
-        ProviderCombo.SelectedItem = provider is "Claude" ? "Claude" : "ChatGPT";
-        ProjectCombo.Text = project;
-        SessionCombo.Text = session;
-        SendShortcutText.Text = TryNormalizeShortcut(sendShortcut, out var normalizedShortcut) ? normalizedShortcut : "Ctrl+Shift+Z";
-        PcFontSizeText.Text = pcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        TranslationFontSizeText.Text = translationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        AnswerInputFontSizeText.Text = answerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        AnswerFontSizeText.Text = answerFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        SetColorButton(PcTextColorButton, pcTextColor);
-        SetColorButton(PcCaretColorButton, pcCaretColor);
-        SetColorButton(TranslationTextColorButton, translationTextColor);
-        SetColorButton(AnswerInputTextColorButton, answerInputTextColor);
-        SetColorButton(AnswerTextColorButton, answerTextColor);
+        ThemeCombo.ItemsSource = new[] { "Dark", "Light" };
+        ThemeCombo.SelectedItem = settings.Theme is "Light" ? "Light" : "Dark";
+        ThemeCombo.SelectionChanged += (_, _) => AppTheme.Apply(SelectedTheme);
+        StartWithWindowsCheck.IsChecked = settings.StartWithWindows;
+        WhisperOption.IsChecked = settings.CaptionMethod == CaptionMethod.Whisper;
+        WindowsCaptionsOption.IsChecked = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions;
+        ChromePortText.Text = settings.ChromeDebugPort.ToString();
+        ProviderCombo.ItemsSource = new[] { "ChatGPT", "Claude", "Telegram" };
+        ProviderCombo.SelectedItem = settings.AiProvider is "Claude" or "Telegram" ? settings.AiProvider : "ChatGPT";
+        ProjectCombo.Text = settings.AiProject;
+        SessionCombo.Text = settings.AiSession;
+        SendShortcutText.Text = TryNormalizeShortcut(settings.SendShortcut, out var normalizedShortcut) ? normalizedShortcut : "Ctrl+Shift+Z";
+        RestoreShortcutText.Text = TryNormalizeShortcut(settings.RestoreShortcut, out var normalizedRestore) ? normalizedRestore : "Ctrl+Alt+H";
+        TelegramShortcutText.Text = TryNormalizeShortcut(settings.TelegramShortcut, out var normalizedTelegram) ? normalizedTelegram : "Ctrl+Shift+T";
+        TelegramAllShortcutText.Text = TryNormalizeShortcut(settings.TelegramAllShortcut, out var normalizedAll) ? normalizedAll : "Ctrl+Shift+A";
+        MessengerCombo.ItemsSource = Messenger.All.Select(messenger => messenger.Name).ToArray();
+        MessengerCombo.SelectedItem = Messenger.Find(settings.MessengerTarget)?.Name ?? Messenger.Telegram.Name;
+        PcFontSizeText.Text = settings.PcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        TranslationFontSizeText.Text = settings.TranslationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        AnswerInputFontSizeText.Text = settings.AnswerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        AnswerFontSizeText.Text = settings.AnswerFontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        SetColorButton(PcTextColorButton, settings.PcTextColor);
+        SetColorButton(PcCaretColorButton, settings.PcCaretColor);
+        SetColorButton(TranslationTextColorButton, settings.TranslationTextColor);
+        SetColorButton(AnswerInputTextColorButton, settings.AnswerInputTextColor);
+        SetColorButton(AnswerTextColorButton, settings.AnswerTextColor);
+        Loaded += async (_, _) => await RefreshChromeButtonAsync();
     }
-    public CaptionMethod SelectedMethod => CaptionMethod.Whisper;
+    public CaptionMethod SelectedMethod => WindowsCaptionsOption.IsChecked == true ? CaptionMethod.WindowsLiveCaptions : CaptionMethod.Whisper;
     public int ChromeDebugPort => int.TryParse(ChromePortText.Text, out var port) && port is >= 1024 and <= 65535 ? port : 9111;
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
     public string AiProject => ProjectCombo.Text.Trim();
     public string AiSession => SessionCombo.Text.Trim();
     public string SendShortcut => SendShortcutText.Text;
+    public string RestoreShortcut => RestoreShortcutText.Text;
+    public string TelegramShortcut => TelegramShortcutText.Text;
+    public string TelegramAllShortcut => TelegramAllShortcutText.Text;
+    public string MessengerTarget => MessengerCombo.SelectedItem as string ?? Messenger.Telegram.Name;
+    public string SelectedTheme => ThemeCombo.SelectedItem as string ?? "Dark";
+    public bool StartWithWindows => StartWithWindowsCheck.IsChecked == true;
+
+    // Supplied by the owner, which holds the browser session. The dialog only
+    // drives the button; it never owns or starts Chrome itself.
+    public Func<int, Task>? OpenChromeAsync { get; set; }
+    public Func<Task>? CloseChromeAsync { get; set; }
+
+    private async void ChromeToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (OpenChromeAsync is null || CloseChromeAsync is null) return;
+        var port = ChromeDebugPort;
+        ChromeToggleButton.IsEnabled = false;
+        ChromeToggleButton.Content = "Working…";
+        try
+        {
+            if (await ChromeDebugSession.IsDebugEndpointAvailableAsync(port)) await CloseChromeAsync();
+            else await OpenChromeAsync(port);
+        }
+        catch (Exception error) when (error is IOException or System.Net.Http.HttpRequestException
+            or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            System.Windows.MessageBox.Show(this, error.Message, "Chrome", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            ChromeToggleButton.IsEnabled = true;
+            await RefreshChromeButtonAsync();
+        }
+    }
+
+    private async Task RefreshChromeButtonAsync()
+    {
+        if (OpenChromeAsync is null || CloseChromeAsync is null)
+        {
+            ChromeToggleButton.IsEnabled = false;
+            ChromeToggleButton.Content = "Open Chrome";
+            return;
+        }
+        ChromeToggleButton.Content =
+            await ChromeDebugSession.IsDebugEndpointAvailableAsync(ChromeDebugPort) ? "Close Chrome" : "Open Chrome";
+    }
     public double PcFontSize => ReadFontSize(PcFontSizeText);
     public string PcTextColor => PcTextColorButton.Content?.ToString() ?? "#CCCCCC";
     public string PcCaretColor => PcCaretColorButton.Content?.ToString() ?? "#AEAFAD";
@@ -79,6 +135,18 @@ public partial class SettingsWindow : Window
             SetColorButton(button, $"#{picker.Color.R:X2}{picker.Color.G:X2}{picker.Color.B:X2}");
     }
     private void SendShortcutText_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        => CaptureShortcut(SendShortcutText, e, "Ctrl+Shift+Z");
+
+    private void RestoreShortcutText_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        => CaptureShortcut(RestoreShortcutText, e, "Ctrl+Alt+H");
+
+    private void TelegramShortcutText_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        => CaptureShortcut(TelegramShortcutText, e, "Ctrl+Shift+T");
+
+    private void TelegramAllShortcutText_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        => CaptureShortcut(TelegramAllShortcutText, e, "Ctrl+Shift+A");
+
+    private void CaptureShortcut(System.Windows.Controls.TextBox target, System.Windows.Input.KeyEventArgs e, string fallback)
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or
@@ -90,7 +158,7 @@ public partial class SettingsWindow : Window
         try
         {
             var gesture = new KeyGesture(key, Keyboard.Modifiers);
-            SendShortcutText.Text = new KeyGestureConverter().ConvertToInvariantString(gesture) ?? "Ctrl+Shift+Z";
+            target.Text = new KeyGestureConverter().ConvertToInvariantString(gesture) ?? fallback;
         }
         catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
         {
@@ -129,6 +197,31 @@ public partial class SettingsWindow : Window
             return;
         }
         SendShortcutText.Text = shortcut;
+        if (!TryNormalizeShortcut(RestoreShortcutText.Text, out var restore) ||
+            new KeyGestureConverter().ConvertFromInvariantString(restore) is not KeyGesture restoreGesture ||
+            System.Numerics.BitOperations.PopCount((uint)restoreGesture.Modifiers) < 2)
+        {
+            System.Windows.MessageBox.Show(this, "Use at least two modifier keys for the global restore shortcut.", "Shortcut",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (!TryNormalizeShortcut(TelegramShortcutText.Text, out var telegram) ||
+            !TryNormalizeShortcut(TelegramAllShortcutText.Text, out var telegramAll))
+        {
+            System.Windows.MessageBox.Show(this, "Click each Telegram shortcut field and press a valid key combination.", "Settings",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var shortcuts = new[] { shortcut, restore, telegram, telegramAll };
+        if (shortcuts.Distinct(StringComparer.OrdinalIgnoreCase).Count() != shortcuts.Length)
+        {
+            System.Windows.MessageBox.Show(this, "Choose a different shortcut for each of Restore, Send, Send Selection and All Send.",
+                "Shortcut", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        RestoreShortcutText.Text = restore;
+        TelegramShortcutText.Text = telegram;
+        TelegramAllShortcutText.Text = telegramAll;
         DialogResult = true;
     }
 }

@@ -3,19 +3,23 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Help Me!" Width="1060" Height="860"
         Icon="{StaticResource AppIcon}" MinWidth="700" MinHeight="300"
-        Background="{StaticResource WindowBackground}" Foreground="{StaticResource Foreground}" FontFamily="Segoe UI" FontSize="12"
+        Background="{DynamicResource WindowBackground}" Foreground="{DynamicResource Foreground}" FontFamily="Segoe UI" FontSize="12"
         WindowStyle="None" MouseLeftButtonDown="Window_MouseLeftButtonDown" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
   <shell:WindowChrome.WindowChrome>
     <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
   </shell:WindowChrome.WindowChrome>
   <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition x:Name="CaptionColumn" Width="*"/>
+      <ColumnDefinition x:Name="AnswerSplitterColumn" Width="5"/>
+      <ColumnDefinition x:Name="AnswerColumn" Width="*"/>
+    </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
       <RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="0"/>
       <RowDefinition Height="26"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <Border Grid.ColumnSpan="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Divider}" BorderThickness="0,0,0,1">
+    <Border Grid.ColumnSpan="3" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1">
       <Grid Margin="10,0,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -25,26 +29,33 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
           <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" Margin="0,0,4,0"/>
           <ToggleButton x:Name="AlwaysOnTopToggle" Content="Always on Top" Click="AlwaysOnTop_Click" Margin="0,0,8,0" ToolTip="Keep Help Me! above other windows"/>
-          <Button Content="&#xE921;" FontFamily="Segoe MDL2 Assets" Width="38" MinWidth="38" Height="32" Padding="0" Click="Minimize_Click" ToolTip="Minimize to tray" AutomationProperties.Name="Minimize to tray"/>
-          <Button Style="{StaticResource CloseButton}" Click="Close_Click" ToolTip="Close" AutomationProperties.Name="Close Help Me!"/>
+          <Button Content="&#xE921;" FontFamily="Segoe MDL2 Assets" Width="38" MinWidth="38" Height="32" Padding="0" Click="Minimize_Click"
+                  ToolTip="Hide to the system tray. Help Me! keeps running; use tray Exit to quit."
+                  AutomationProperties.Name="Hide to tray"/>
         </StackPanel>
       </Grid>
     </Border>
 
     <Grid Grid.Row="1" Grid.Column="0" Margin="8,8,0,0">
-      <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="5"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition x:Name="PcRow" Height="*"/>
+        <RowDefinition x:Name="TranslationSplitterRow" Height="5"/>
+        <RowDefinition x:Name="TranslationRow" Height="*"/>
+      </Grid.RowDefinitions>
       <Border Style="{StaticResource Panel}">
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
           <Border Style="{StaticResource SectionHeader}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+              <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
                 <TextBlock Text="01  PC AUDIO" VerticalAlignment="Center" FontSize="11"/>
               </Border>
               <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="Format" Click="Format_Click" ToolTip="Clear all PC caption text"/>
                 <Button x:Name="SaveButton" Content="Save" Click="Save_Click" ToolTip="Save captions as a text file"/>
+                <Button x:Name="CaptionWindowButton" Content="Hide" Click="CaptionWindowButton_Click" IsEnabled="False"
+                        Margin="4,0,0,0" ToolTip="Show or hide the Windows Live Captions window"/>
                 <ToggleButton x:Name="PcToggle" Click="PcToggle_Click" AutomationProperties.Name="PC captions start or stop" Margin="4,0,0,0"/>
               </StackPanel>
             </Grid>
@@ -55,8 +66,8 @@
         </Grid>
       </Border>
 
-      <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                    Background="{StaticResource Divider}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+      <GridSplitter x:Name="TranslationSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Background="{DynamicResource Divider}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
                     ShowsPreview="False" ToolTip="Drag to resize PC audio and translation"/>
 
       <Border Grid.Row="2" Style="{StaticResource Panel}">
@@ -65,46 +76,73 @@
           <Border Style="{StaticResource SectionHeader}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+              <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
                 <TextBlock Text="02  TRANSLATION" FontSize="11" VerticalAlignment="Center"/>
               </Border>
               <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="Format" Click="TranslationFormat_Click" ToolTip="Clear translated text"/>
                 <Button Content="Save" Click="Save_Click" Tag="Translation" ToolTip="Save translated text as a file"/>
                 <ToggleButton x:Name="TranslationToggle" Click="TranslationToggle_Click" AutomationProperties.Name="Korean translation start or stop" Margin="4,0,0,0"/>
+                <ToggleButton x:Name="TranslationCollapseToggle" Style="{StaticResource SectionToggle}" Click="TranslationCollapse_Click"
+                              Margin="4,0,0,0" ToolTip="Hide or show the translation section (Ctrl+2)"
+                              AutomationProperties.Name="Hide or show the translation section"/>
               </StackPanel>
             </Grid>
           </Border>
-          <TextBox Grid.Row="1" x:Name="TranslationText" IsReadOnly="True" IsReadOnlyCaretVisible="True" AutomationProperties.Name="Korean translation"/>
+          <TextBox Grid.Row="1" x:Name="TranslationText" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                   Padding="0,5" AutomationProperties.Name="Korean translation"/>
         </Grid>
       </Border>
     </Grid>
 
-    <GridSplitter Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                  Background="{StaticResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+    <GridSplitter x:Name="AnswerSplitter" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                   ShowsPreview="False" ToolTip="Drag to resize the caption and answer panels"/>
 
     <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="0,8,8,0">
       <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="100"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition x:Name="PromptRow" Height="100"/>
+          <RowDefinition x:Name="PromptSplitterRow" Height="8"/>
+          <RowDefinition x:Name="AnswerRow" Height="*"/>
+          <RowDefinition x:Name="TelegramRow" Height="Auto"/>
+        </Grid.RowDefinitions>
         <Border Style="{StaticResource SectionHeader}">
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Border BorderBrush="{StaticResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+            <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
               <TextBlock Text="04  ANSWER" FontSize="11" VerticalAlignment="Center"/>
             </Border>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-              <Button Content="Format" Click="AnswerFormat_Click" ToolTip="Clear the prompt and answer"/>
-              <Button Content="Save" Click="Save_Click" Tag="Answer" ToolTip="Save the answer as a text file"/>
-              <Button x:Name="AnswerSendButton" Content="Send" Style="{StaticResource PrimaryButton}" Click="AnswerSend_Click" Margin="4,0,0,0" ToolTip="Send captions"/>
+              <StackPanel x:Name="AnswerHeaderActions" Orientation="Horizontal">
+                <Button Content="Format" Click="AnswerFormat_Click" ToolTip="Clear the prompt and answer"/>
+                <Button Content="Save" Click="Save_Click" Tag="Answer" ToolTip="Save the answer as a text file"/>
+                <Button x:Name="AnswerSendButton" Content="Send" Style="{StaticResource PrimaryButton}" Click="AnswerSend_Click" Margin="4,0,0,0" ToolTip="Send captions"/>
+              </StackPanel>
+              <ToggleButton x:Name="AnswerCollapseToggle" Style="{StaticResource SectionToggle}" Click="AnswerCollapse_Click"
+                            Margin="4,0,0,0" ToolTip="Hide or show the answer section (Ctrl+4)"
+                            AutomationProperties.Name="Hide or show the answer section"/>
             </StackPanel>
           </Grid>
         </Border>
-        <TextBox Grid.Row="1" x:Name="TranslationInputText" Height="100" AutomationProperties.Name="Answer input"/>
-        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                      Background="{StaticResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+        <TextBox Grid.Row="1" x:Name="TranslationInputText" AutomationProperties.Name="Answer input"/>
+        <GridSplitter x:Name="PromptSplitter" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
                       ShowsPreview="False" ToolTip="Drag to resize the prompt and answer"/>
         <TextBox Grid.Row="3" x:Name="AnswerText" AutomationProperties.Name="AI answer" IsReadOnly="True"/>
+        <Border Grid.Row="4" x:Name="TelegramBar" Background="{DynamicResource Surface}"
+                BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="6,5">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="TelegramSendAllButton" Content="All Send" Click="TelegramSendAll_Click"
+                    MinWidth="90" Margin="0,0,8,0"
+                    ToolTip="Send the whole AI answer to Telegram, ignoring any selection"
+                    AutomationProperties.Name="Send the whole AI answer to Telegram"/>
+            <Button x:Name="TelegramSendButton" Content="Send Selection" Click="TelegramSend_Click"
+                    MinWidth="120"
+                    AutomationProperties.Name="Send the selected part of the AI answer to Telegram"/>
+          </StackPanel>
+        </Border>
       </Grid>
     </Border>
 
@@ -124,10 +162,10 @@
     </Border>
 
     <DockPanel Grid.Row="3" Grid.ColumnSpan="3" Margin="12,0" VerticalAlignment="Center">
-      <TextBlock x:Name="SendShortcutHint" DockPanel.Dock="Right" Text="Ctrl+Shift+Z  Send" Foreground="{StaticResource Muted}" FontSize="11"/>
-      <TextBlock Text="Whisper  &#x2022;  Offline captions" Foreground="{StaticResource Muted}" FontSize="11"/>
+      <TextBlock x:Name="SendShortcutHint" DockPanel.Dock="Right" Text="Ctrl+Shift+Z  Send" Foreground="{DynamicResource Muted}" FontSize="11"/>
+      <TextBlock x:Name="CaptionSourceHint" Text="Whisper  &#x2022;  Offline captions" Foreground="{DynamicResource Muted}" FontSize="11"/>
     </DockPanel>
-    <TextBlock Grid.Row="4" Grid.ColumnSpan="3" x:Name="Status" Visibility="Collapsed" Foreground="{StaticResource Error}"
+    <TextBlock Grid.Row="4" Grid.ColumnSpan="3" x:Name="Status" Visibility="Collapsed" Foreground="{DynamicResource Error}"
                TextWrapping="Wrap" Margin="12,0,12,8"/>
   </Grid>
 </Window>

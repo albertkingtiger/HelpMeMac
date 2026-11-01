@@ -5,5 +5,6 @@ namespace HelpMe.Services;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum CaptionMethod
 {
-    Whisper
+    Whisper,
+    WindowsLiveCaptions
 }

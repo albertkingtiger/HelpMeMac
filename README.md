@@ -1,8 +1,8 @@
 # Help Me!
 
-A C# desktop application with three text panels and three independent Start/Stop toggles. Captions use the bundled offline Whisper engine:
+A C# desktop application for PC captions, Korean translation, and AI answers. PC captions can use offline Whisper or Windows 11 Live Captions.
 
-The current UI and audio backend are still WPF and NAudio, so the checked-in executable remains Windows-only. The Windows Live Captions integration has been removed; a complete macOS build requires replacing WPF with a cross-platform UI and replacing WASAPI capture with CoreAudio/AVFoundation capture.
+The current UI and audio backend are WPF and NAudio, so the checked-in executable remains Windows-only. A complete macOS build requires replacing WPF with a cross-platform UI and replacing WASAPI capture with CoreAudio/AVFoundation capture.
 
 1. **PC audio**: captions from the default playback device.
 2. **Korean translation**: translates newly recognized PC audio into Korean. It can run with the PC caption display stopped; it still captures PC audio internally.
@@ -22,9 +22,9 @@ Windows captions accumulate stable text in the editable area instead of replacin
 
 ## Caption method settings
 
-Click **Settings** at the top right. Whisper is the only caption method and runs locally with the downloaded model.
+Click **Settings** at the top right to choose **Whisper** or **Windows 11 Live Captions**, and to switch between Dark and Light themes. The app remembers both choices. Live Captions is opened when selected and PC capture starts; complete Windows' first-run language setup if prompted. Help Me! reads the caption text exposed through Windows UI Automation, so this method depends on the Live Captions window and may need adjustment after Windows updates. Whisper remains the default.
 
-Microphone captions and PC captions both use Whisper. Preferences are stored as JSON under the user's application-data directory, so they do not depend on the Windows Registry.
+Microphone captions continue to use Whisper. Preferences are stored as JSON under the user's application-data directory, so they do not depend on the Windows Registry.
 
 ## First setup (internet required)
 
@@ -61,26 +61,61 @@ Panels display plain text without timestamps, using 12px text and compact 26px b
 
 The default Base model, beam search, and longer six-second segments favor natural wording and accuracy over minimum latency. Use `models/ggml-small-q8_0.bin` for higher accuracy on a faster machine, or `models/ggml-tiny.en-q8_0.bin` when latency matters more. Recognition processors are reused between segments, and translation uses beam search with beam size 4 for improved phrasing at some additional computation cost. Actual live delay varies with hardware and audio.
 
-## Build an offline application folder
+## Build the portable Windows 11 package
 
 ```powershell
-dotnet publish HelpMe.csproj -c Release -r win-x64 --self-contained true -o publish
-Copy-Item models publish/models -Recurse
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package.ps1
 ```
 
-Keep Python's `.venv` in its original location and set `publish/appsettings.json` → `PythonPath` to its absolute executable path, or create a new Python environment on the destination machine using `translation/requirements.txt` and point to it. Virtual environments are not portable; copying a `.venv` alone is insufficient. Include model folders and the Python runtime/dependencies when deploying without internet. App settings and `translation/worker.py` are copied by the project automatically.
+This writes `dist/HelpMe-Windows11-Portable.zip` and a SHA-256 checksum. Extract the ZIP on an x64 Windows 11 PC and run `Start-HelpMe.cmd`. It includes self-contained .NET, a standalone Python runtime and dependencies, the default Whisper Base model, and the Korean NLLB model. It does not require a Python or .NET installation. Windows Live Captions is part of Windows 11 and may require its first-run speech pack; Chrome is needed only for the optional AI Answer panel. The NLLB model is licensed CC-BY-NC-4.0.
+
+## Build the Windows installer
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+```
+
+This writes `dist/HelpMe-Setup-<version>.exe` and a SHA-256 checksum. The installer contains the self-contained .NET app, Python and its dependencies, the Visual C++ runtime DLLs, all Whisper models and the Korean NLLB model. It installs per user under `%LOCALAPPDATA%\Programs\HelpMe` without administrator rights, and the uninstaller removes the program and its Windows startup entry while leaving settings and Chrome sign-ins in place. Google Chrome is not included. The script uses an installed Inno Setup 6, or downloads the Tools.InnoSetup package from NuGet into `.tools/innosetup` if there is none.
 
 ## AI Answer panel
 
-Help Me! opens a dedicated Chrome window containing ChatGPT and Claude. Sign in there once; its profile is kept in `%LOCALAPPDATA%\HelpMe\ChromeDebug` so login state survives restarts. This optional AI feature requires internet. Captioning and local translation remain separate.
+Help Me! opens a dedicated Chrome window containing ChatGPT, Claude, Telegram Web and WhatsApp Web. Sign in there once; its profile is kept in `%LOCALAPPDATA%\HelpMe\ChromeDebug` so login state survives restarts. This optional AI feature requires internet. Captioning and local translation remain separate.
 
-In Settings, select the AI provider. Open the conversation you want in that provider's managed Chrome tab. **Send** uses that existing page without selecting a project/session, reloading, or creating a new conversation. Project and Session preferences remain saved but are not used when sending. Settings, including the debugging port (default 9111), are saved under `HKEY_CURRENT_USER\Software\HelpMe`.
+In Settings, select the AI provider. Open the conversation you want in that provider's managed Chrome tab. **Send** uses that existing page without selecting a project/session, reloading, or creating a new conversation. **Open Chrome** / **Close Chrome** next to the debug port starts or stops that browser window without leaving Settings; the label follows the port in the field. Closing works even for a Chrome that was already running when Help Me! started. Quitting Help Me! still only closes a browser it started itself.
+
+Sending does not need the provider tab to be in front. Help Me! marks the tab as focused for the duration of the request, so you can stay in Telegram, another tab, or another app and the answer still arrives in panel 04.
+
+Project and Session preferences remain saved but are not used when sending. Settings, including the debugging port (default 9111), are saved as JSON under `%APPDATA%\HelpMe\settings.json`.
 
 Click a position in PC AUDIO to save the text from that point through the current end to the Windows clipboard. The same saved suffix is used by **Send** and **Ctrl+Shift+Z**. Without a saved position, the whole text is sent. Project/session names are never appended to the prompt. An existing matching draft in Chrome is reused; unrelated drafts must be cleared or sent there first.
 
-The Answer panel and panel 03 receive assistant text as it streams. One request runs at a time on a background task. Closing Help Me! cancels the reader and closes its Chrome instance. Browser integration depends on the providers' page structure and can need updates; local fixture tests verify repeated submission without navigation, streaming, cancellation and error handling, but do not verify signed-in live provider pages.
+## Background mode and the system tray
 
-The reply reader tracks messages after the submitted user turn and tolerates older messages being removed from the page. If no reply can be read, an error is shown rather than silently leaving the panel empty. The latest request's diagnostic metadata is saved at `%LOCALAPPDATA%\HelpMe\logs\ai-reader.log`: provider, detected message counts, character counts, streaming state and failure type. Captions, replies, page URLs, conversation titles and cookies are not written to this log.
+Help Me! is a background application. It starts hidden in the system tray and begins capturing immediately; the window is never shown at launch. Press **Ctrl+Alt+H** to bring it up, or double-click the tray icon. Change the global Restore shortcut in Settings if that combination is already used by another app.
+
+The title bar has no close button. The minimize button and Alt+F4 both return the window to the tray, leaving capture running. **Exit** in the tray icon's menu is the only way to quit.
+
+Only one Help Me! runs per signed-in user. Launching it again while it is already in the tray does not start a second copy: the running instance comes to the front instead. This matters because the app is invisible at startup, so a duplicate would otherwise be silent, with two managed Chrome sessions and two processes driving Live Captions.
+
+**Start Help Me! when I sign in to Windows** in Settings is on by default and writes a per-user entry to `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`. Turn it off there to remove the entry. Registering the entry needs no elevation; if it fails, the app reports it and still runs.
+
+When Live Captions is the caption source, its window is moved offscreen as soon as it appears and is re-hidden if Windows brings it back, so it never covers what you are watching. **Show**/**Hide** in section 01 brings it back deliberately.
+
+## Hiding sections
+
+**Hide** in section 02 or 04 collapses that section to its header bar, giving the space to the remaining panels; the header stays so the section can be restored with the mouse. **Ctrl+2** and **Ctrl+4** do the same from the keyboard. Collapsing 02 leaves its Start/Stop available, so translation keeps running out of sight. Collapsing 04 hides its buttons to keep the leftover strip narrow; Ctrl+Shift+Z still sends. Both states are remembered, as are the sizes you drag the splitters to.
+
+## Sending captions to Telegram
+
+Help Me!'s Chrome window also opens **Telegram Web** (`web.telegram.org/k/`). Sign in there once; like the AI providers, the login lives in the dedicated profile and survives restarts.
+
+Select **Telegram** as the provider in Settings and open the chat you want in that tab. **Send** and the send shortcut then deliver the caption text to that open chat instead of to an assistant. Telegram is a destination, not an assistant: nothing is read back, so panel 04 reports what was delivered rather than a reply. The text is typed into the chat's message box and submitted with Enter, falling back to the send button if Enter does not submit. An existing unrelated draft in the message box is left alone and reported rather than overwritten.
+
+**Send Selection** at the bottom of panel 04 posts the AI answer to the open Telegram chat as its own new message, whatever provider produced it. Select part of the answer first to send only that part; with nothing selected, or a selection that is only whitespace, it sends the whole answer. **All Send**, beside it, always sends the whole answer, so a selection does not have to be cleared first. Both send one message and share the Telegram tab, so neither starts while the other is sending. The default shortcuts are **Ctrl+Shift+T** for Send Selection and **Ctrl+Shift+A** for All Send, both changeable in Settings next to the other shortcuts; Restore, Send, Send Selection and All Send must all differ. The button confirms with a brief "Sent"; failures appear on the status line.
+
+**Send answers to** in Settings chooses Telegram or WhatsApp for those two buttons and their shortcuts. Help Me!'s Chrome window opens both `web.telegram.org/k/` and `web.whatsapp.com`; link WhatsApp once by scanning its QR code in that tab, then open the chat you want. WhatsApp selectors depend on its page structure and have only been exercised against local fixtures.
+
+This uses the signed-in web session in the managed Chrome window. Help Me! makes no API calls of its own and stores no bot token; audio, captions and local translation stay on this PC.
 
 **01 Start** and **01 Stop** control Whisper capture independently for PC audio, translation, and microphone panels. Translation can process text already in the box without starting capture.
 

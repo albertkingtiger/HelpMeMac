@@ -67,6 +67,9 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(replies, [{"ready": True}, {"text": "안녕하세요"}])
         self.assertEqual(calls[0][0], [["Hello", "eng_Latn"]])
         self.assertEqual(calls[0][1]["target_prefix"], [["kor_Hang"]])
+        self.assertEqual(calls[0][1]["max_decoding_length"], 48)
+        self.assertEqual(calls[0][1]["no_repeat_ngram_size"], 3)
+        self.assertGreater(calls[0][1]["repetition_penalty"], 1)
 
     def test_korean_source_bypasses_inference(self):
         replies, calls = self.run_worker([{"text": "안녕", "source": "kor_Hang"}])
@@ -87,6 +90,7 @@ class WorkerTests(unittest.TestCase):
         replies, calls = self.run_worker([{"text": " ".join(["word"] * 700), "source": "eng_Latn"}])
         self.assertEqual(len(calls), 3)
         self.assertEqual(sum(len(call[0][0]) - 1 for call in calls), 700)
+        self.assertTrue(all(call[1]["max_decoding_length"] <= 384 for call in calls))
         self.assertEqual(replies[1]["text"], "안녕하세요 안녕하세요 안녕하세요")
 
 

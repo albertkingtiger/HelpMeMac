@@ -29,7 +29,47 @@ var server = Task.Run(async () =>
         var sessionPath = provider == "Claude" ? "/chat/s" : "/c/s";
         var assistant = provider == "Claude" ? "class='font-claude-response'" : "data-message-author-role='assistant'";
         var composer = provider == "Claude" ? "<div contenteditable='true' role='textbox'></div>" : "<textarea id='prompt-textarea'></textarea>";
-        var body = $$"""
+        var body = provider == "WhatsApp" ? $$"""
+            <!doctype html><html><body>
+            <div id="search" contenteditable="true" data-tab="3"></div>
+            <footer><div contenteditable="true" data-tab="10"></div></footer>
+            <div contenteditable="true" data-tab="10" style="display:none">Offscreen copy</div>
+            <button data-testid="send" aria-label="Send"><span data-icon="send"></span></button>
+            <script>
+              const input = document.querySelector('footer div[contenteditable]');
+              const send = document.querySelector('button[data-testid=send]');
+              window.sends = 0;
+              const deliver = () => {
+                const text = input.innerText.trim();
+                if (!text) return;
+                window.sends++; window.lastPrompt = input.innerText; input.innerText = '';
+              };
+              if (!location.pathname.includes('button'))
+                  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); deliver(); } });
+              send.onclick = deliver;
+            </script></body></html>
+            """ : provider == "Telegram" ? $$"""
+            <!doctype html><html><body>
+            <div class="chat-input"><div class="input-message-input" contenteditable="true"></div></div>
+            <div class="input-message-input" contenteditable="true" style="display:none">Offscreen copy</div>
+            <button class="btn-send record" aria-label="Send Message"></button>
+            <script>
+              const input = document.querySelector('.chat-input .input-message-input');
+              const send = document.querySelector('.btn-send');
+              window.sends = 0;
+              const deliver = () => {
+                const text = input.innerText.trim();
+                if (!text) return;
+                window.sends++; window.lastPrompt = input.innerText;
+                input.innerText = ''; send.classList.add('record');
+              };
+              input.addEventListener('input', () => send.classList.toggle('record', !input.innerText.trim()));
+              // The "button" fixture ignores Enter so the send-button fallback runs.
+              if (!location.pathname.includes('button'))
+                  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); deliver(); } });
+              send.onclick = deliver;
+            </script></body></html>
+            """ : $$"""
             <!doctype html><html><body>
             <aside><a href="{{projectPath}}">Work</a><a href="/c/other">Unrelated</a></aside>
             <main>
@@ -42,7 +82,12 @@ var server = Task.Run(async () =>
             <script>
               const input = document.querySelector('#prompt-textarea,[contenteditable=true]');
               const send = document.querySelector('button');
-              input.addEventListener('input', () => send.disabled = !(input.value || input.innerText).trim());
+              // The "background" fixture only enables Send while the page is the
+              // focused, active tab, the way a throttled provider page behaves.
+              const active = () => !location.pathname.includes('background') || document.hasFocus();
+              const sync = () => send.disabled = !((input.value || input.innerText).trim() && active());
+              input.addEventListener('input', sync);
+              setInterval(sync, 100);
               window.sends = 0;
               send.onclick = () => {
                 window.sends++; window.lastPrompt = input.value || input.innerText;
@@ -134,6 +179,78 @@ try
     await Run("Claude", "/chat/fallback");
     await Run("ChatGPT", "/c/draft");
     await Run("Claude", "/chat/draft");
+
+    // Telegram is a delivery destination: the text must reach the open chat and
+    // the call must return without waiting for any reply.
+    Task RunTelegram(string currentPath, string label) => RunMessenger("Telegram", currentPath, label);
+    async Task RunMessenger(string messenger, string currentPath, string label)
+    {
+        provider = messenger;
+        using var inspection = new CdpPage();
+        await inspection.ConnectAsync(socket!, token);
+        await inspection.NavigateAsync(new Uri(origin, currentPath).AbsoluteUri, token);
+        var identity = (await inspection.EvaluateAsync("window.fixtureIdentity = crypto.randomUUID()", token)).GetString();
+        for (var sendNumber = 1; sendNumber <= 2; sendNumber++)
+        {
+            var message = $"Caption {sendNumber}: What's next?\nSecond sentence.";
+            var result = await ChromeAiClient.SendToPageAsync(socket!, provider, message, null, token);
+            Check(result.StartsWith("Sent ") && result.Contains(messenger), label + " reports delivery without a reply");
+            var state = await inspection.EvaluateAsync("({path:location.pathname,prompt:window.lastPrompt,sends:window.sends,identity:window.fixtureIdentity})", token);
+            Check(state.GetProperty("path").GetString() == currentPath && state.GetProperty("identity").GetString() == identity,
+                label + " keeps the open chat without navigation or reload");
+            // A contenteditable may represent the break as \n or \r\n; what matters
+            // is that no caption text was dropped on the way in.
+            var sent = (state.GetProperty("prompt").GetString() ?? "").Replace("\r\n", "\n").Replace("\r", "\n");
+            Check(sent.Replace("\n", " ").Trim() == message.Replace("\n", " ").Trim(), label + " delivers the caption text unchanged");
+            Check(state.GetProperty("sends").GetInt32() == sendNumber, label + " sends exactly once per request");
+            Check((await inspection.EvaluateAsync("(document.querySelector('#search')?.innerText ?? '').length", token)).GetInt32() == 0,
+                label + " leaves the chat search box empty");
+        }
+    }
+    await RunTelegram("/k/enter", "Telegram Enter");
+    await RunTelegram("/k/button", "Telegram send button fallback");
+    await RunMessenger("WhatsApp", "/w/enter", "WhatsApp Enter");
+    await RunMessenger("WhatsApp", "/w/button", "WhatsApp send button fallback");
+
+    // The user works in another tab while Help Me! sends. Chrome throttles the
+    // provider tab, so without focus emulation the prompt is inserted and then
+    // sits there unsent because Send never re-enables.
+    provider = "ChatGPT";
+    string? spareTab = null;
+    try
+    {
+        using var inspection = new CdpPage();
+        await inspection.ConnectAsync(socket!, token);
+        await inspection.NavigateAsync(new Uri(origin, "/c/background").AbsoluteUri, token);
+        using (var opened = await http.PutAsync($"http://127.0.0.1:{debugPort}/json/new?{Uri.EscapeDataString(new Uri(origin, "/c/elsewhere").AbsoluteUri)}", null, token))
+        {
+            opened.EnsureSuccessStatusCode();
+            using var created = JsonDocument.Parse(await opened.Content.ReadAsStringAsync(token));
+            spareTab = created.RootElement.GetProperty("id").GetString();
+        }
+        using (await http.GetAsync($"http://127.0.0.1:{debugPort}/json/activate/{spareTab}", token)) { }
+        await Task.Delay(1000, token);
+        Check(!(await inspection.EvaluateAsync("document.hasFocus()", token)).GetBoolean(),
+            "Provider tab is genuinely in the background");
+        // Headless Chrome does not throttle background tabs the way a real window
+        // does, so the end-to-end check below cannot prove the fix. Assert the
+        // mechanism directly: Chrome must accept the command and the page must
+        // then report itself focused while another tab is active.
+        await inspection.CommandAsync("Emulation.setFocusEmulationEnabled", new { enabled = true }, token);
+        Check((await inspection.EvaluateAsync("document.hasFocus()", token)).GetBoolean(),
+            "Focus emulation makes a background provider tab report itself focused");
+        await inspection.CommandAsync("Emulation.setFocusEmulationEnabled", new { enabled = false }, token);
+        var updates = new List<string>();
+        var answer = await ChromeAiClient.SendToPageAsync(socket!, provider, "Caption while elsewhere.", updates.Add, token);
+        Check(answer == "Complete answer\nSecond line", "Reply arrives while another tab holds focus");
+        var sends = await inspection.EvaluateAsync("window.sends", token);
+        Check(sends.GetInt32() == 1, "Exactly one submission from the background tab");
+    }
+    finally
+    {
+        if (spareTab is not null)
+            try { using (await http.GetAsync($"http://127.0.0.1:{debugPort}/json/close/{spareTab}", token)) { } } catch (HttpRequestException) { }
+    }
     using (var inspection = new CdpPage())
     {
         await inspection.ConnectAsync(socket!, token);
@@ -144,6 +261,15 @@ try
     cancelled.Cancel();
     try { await ChromeAiClient.SendToPageAsync(socket!, provider, "No send", null, cancelled.Token); throw new Exception("Cancellation must propagate"); }
     catch (OperationCanceledException) { Console.WriteLine("PASS Cancellation"); }
+    // Settings' Close Chrome button must work on a browser Help Me! did not
+    // start. This fixture Chrome was launched by the test, so the session owns
+    // no process and killing one would be a no-op. Runs last: it shuts Chrome down.
+    await using (var adopted = new ChromeDebugSession(debugPort))
+    {
+        Check(await ChromeDebugSession.IsDebugEndpointAvailableAsync(debugPort), "Adopted Chrome is reachable before closing");
+        await adopted.CloseAsync();
+        Check(!await ChromeDebugSession.IsDebugEndpointAvailableAsync(debugPort), "Close works on a Chrome Help Me! did not start");
+    }
     Console.WriteLine("ALL CHROME AI SMOKE CHECKS PASSED (local fixtures only)");
 }
 finally

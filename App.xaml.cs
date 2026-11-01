@@ -15,15 +15,25 @@ public partial class App : Application
     {
         base.OnStartup(e);
         if (!launchMainWindow) return;
-        var window = new MainWindow();
-        if (e.Args.Length is 2 or 4 && e.Args[0] is "--render-preview" or "--render-settings-preview")
+        var rendering = e.Args.Length is 2 or 4 or 5 && e.Args[0] is "--render-preview" or "--render-settings-preview";
+        // Offscreen rendering writes a PNG and exits without a tray icon, audio
+        // or Chrome, so it must not be turned away while the app is running.
+        if (!rendering && !Services.SingleInstance.TryClaim())
         {
-            // Offscreen rendering for layout verification; never opens an audio device.
+            Services.SingleInstance.RequestShow();
+            Shutdown();
+            return;
+        }
+        var window = new MainWindow();
+        if (rendering)
+        {
             var settingsPreview = e.Args[0] == "--render-settings-preview";
-            Window preview = settingsPreview ? new SettingsWindow(Services.CaptionMethod.Whisper) : window;
+            Window preview = settingsPreview
+                ? new SettingsWindow(Services.CaptionMethod.Whisper, 9111, theme: e.Args.Length == 5 ? e.Args[4] : "Dark")
+                : window;
             var width = settingsPreview ? 580 : 1004;
-            var height = settingsPreview ? 650 : 748;
-            if (e.Args.Length == 4)
+            var height = settingsPreview ? 720 : 748;
+            if (e.Args.Length >= 4)
             {
                 // Optional dimensions allow checking compact layouts without
                 // changing the user's saved window size or starting capture.
@@ -31,6 +41,7 @@ public partial class App : Application
                 height = int.Parse(e.Args[3]);
                 if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(e.Args));
             }
+            if (e.Args.Length == 5) Services.AppTheme.Apply(e.Args[4]);
             var content = (Grid)preview.Content;
             content.Background = preview.Background;
             content.Measure(new Size(width, height));
@@ -44,6 +55,7 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        window.Show();
+        // Background mode: no Show here. The tray owns the first appearance.
+        window.StartInBackground();
     }
 }

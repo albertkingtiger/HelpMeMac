@@ -50,10 +50,37 @@ try
     settings.SaveSendShortcut("Ctrl+Alt+K");
     if (AppSettings.Load(preferencePath).SendShortcut != "Ctrl+Alt+K")
         throw new Exception("Send shortcut did not round-trip through JSON preferences.");
+    settings.SaveRestoreShortcut("Ctrl+Alt+H");
+    if (AppSettings.Load(preferencePath).RestoreShortcut != "Ctrl+Alt+H")
+        throw new Exception("Restore shortcut did not round-trip through JSON preferences.");
+    settings.SaveTelegramShortcut("Ctrl+Alt+G");
+    if (AppSettings.Load(preferencePath).TelegramShortcut != "Ctrl+Alt+G")
+        throw new Exception("Telegram shortcut did not round-trip through JSON preferences.");
+    settings.SaveTelegramAllShortcut("Ctrl+Alt+J");
+    if (AppSettings.Load(preferencePath).TelegramAllShortcut != "Ctrl+Alt+J")
+        throw new Exception("All Send shortcut did not round-trip through JSON preferences.");
+    Console.WriteLine("PASS: configurable Send Selection and All Send shortcut persistence");
+    settings.SaveMessengerTarget("WhatsApp");
+    if (AppSettings.Load(preferencePath).MessengerTarget != "WhatsApp")
+        throw new Exception("Messenger choice did not round-trip through JSON preferences.");
+    settings.SaveMessengerTarget("Telegram");
+    Console.WriteLine("PASS: Telegram or WhatsApp destination persistence");
+    settings.SaveTheme("Light");
+    settings.SaveCaptionMethod(CaptionMethod.WindowsLiveCaptions);
+    var displaySettings = AppSettings.Load(preferencePath);
+    if (displaySettings.Theme != "Light" || displaySettings.CaptionMethod != CaptionMethod.WindowsLiveCaptions)
+        throw new Exception("Theme and caption source did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: AI provider, destination and port preference persistence");
     Console.WriteLine("PASS: per-editor font and color preference persistence");
     Console.WriteLine("PASS: configurable send shortcut preference persistence");
-    Console.WriteLine("PASS: cross-platform JSON preferences and Whisper-only captions");
+    Console.WriteLine("PASS: configurable tray restore shortcut preference persistence");
+    Console.WriteLine("PASS: theme and Windows caption source persistence");
+    settings.SaveStartWithWindows(false);
+    settings.SaveCollapsedSections(translationCollapsed: true, answerCollapsed: false);
+    var layout = AppSettings.Load(preferencePath);
+    if (layout.StartWithWindows || !layout.TranslationCollapsed || layout.AnswerCollapsed)
+        throw new Exception("Startup and collapsed-section settings did not round-trip through JSON preferences.");
+    Console.WriteLine("PASS: Windows startup and collapsed section persistence");
 }
 finally
 {

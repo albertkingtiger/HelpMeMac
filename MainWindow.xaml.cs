@@ -4,11 +4,13 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Automation;
 using System.Windows.Threading;
+using System.Windows.Interop;
 using System.Windows.Input;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
+using System.Net.Http;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
@@ -44,6 +46,7 @@ public partial class MainWindow : Window
     private int micGeneration;
     private int translationGeneration;
     private readonly DispatcherTimer captionFlushTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
+    private readonly DispatcherTimer liveCaptionTranslationTimer = new() { Interval = TimeSpan.FromMilliseconds(1000) };
     private bool translationBusy;
     private bool translationUsesAudio;
     private string translatedSource = "";
@@ -62,41 +65,80 @@ public partial class MainWindow : Window
     private CancellationTokenSource? answerCancellation;
     private int answerOutputVersion;
     private KeyGesture sendShortcut = new(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
+    private KeyGesture telegramShortcut = new(Key.T, ModifierKeys.Control | ModifierKeys.Shift);
+    private KeyGesture telegramAllShortcut = new(Key.A, ModifierKeys.Control | ModifierKeys.Shift);
+    private const string SelectionLabel = "Send Selection";
+    private const string AllLabel = "All Send";
+    private bool telegramSending;
+    private int telegramConfirmation;
+    private bool startedInTray;
+    private EventWaitHandle? showRequest;
+    private RegisteredWaitHandle? showRequestWait;
+    // Collapsing replaces these with Auto; restoring puts back whatever size the
+    // user had dragged the splitters to.
+    private GridLength translationRowHeight = new(1, GridUnitType.Star);
+    private GridLength answerColumnWidth = new(1, GridUnitType.Star);
+    private GridLength promptRowHeight = new(100);
+    private HwndSource? hotkeySource;
+    private bool restoreHotkeyRegistered;
+    private const int RestoreHotkeyId = 0x484D;
+    private const int WmHotkey = 0x0312;
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint virtualKey);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr window, int id);
 
     public MainWindow()
     {
         InitializeComponent();
+        // Background mode: the window is still created so SourceInitialized can
+        // register the global shortcut and Loaded can start capture, but it is
+        // minimized and off the taskbar so it never paints before going to the
+        // tray. Exit lives only in the tray menu.
+        ShowActivated = false;
+        ShowInTaskbar = false;
         trayAppIcon = CreateTrayAppIcon();
         trayIcon = CreateTrayIcon();
         captionFlushTimer.Tick += (_, _) => FlushCaptionBuffers();
+        liveCaptionTranslationTimer.Tick += (_, _) =>
+        {
+            liveCaptionTranslationTimer.Stop();
+            if (settings.CaptionMethod != CaptionMethod.WindowsLiveCaptions || !pcLiveCaptionActive) return;
+            var source = PcText.Text.Trim();
+            if (source == pcFinalCaptionText) return;
+            pcFinalCaptionText = source;
+            ++pcCaptionCommitVersion;
+            ScheduleTranslation();
+        };
         try
         {
             settings = AppSettings.Load();
+            AppTheme.Apply(settings.Theme);
+            UpdateCaptionSourceHint();
+            UpdateCaptionWindowControl();
             Width = settings.WindowWidth;
             Height = settings.WindowHeight;
             ApplyEditorAppearance();
             ApplySendShortcut();
+            TranslationCollapseToggle.IsChecked = settings.TranslationCollapsed;
+            AnswerCollapseToggle.IsChecked = settings.AnswerCollapsed;
+            ApplyTranslationCollapsed();
+            ApplyAnswerCollapsed();
+            SourceInitialized += (_, _) =>
+            {
+                hotkeySource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+                hotkeySource?.AddHook(HotkeyHook);
+                if (!RegisterRestoreShortcut(settings.RestoreShortcut))
+                    ShowError($"Could not register {settings.RestoreShortcut} to restore Help Me!; choose another shortcut in Settings.");
+            };
             SizeChanged += (_, _) => { if (initialized) settings.SaveWindowSize(Width, Height); };
+            // Signing out or shutting down is a real exit, not a trip to the tray.
+            if (System.Windows.Application.Current is { } host)
+                host.SessionEnding += (_, _) => exiting = true;
             engine = new SpeechEngine(settings);
             initialized = true;
-            Loaded += async (_, _) =>
-            {
-                if (chrome is null && !closing) await StartChromeAsync();
-                if (closing || PcToggle.IsChecked == true) return;
-                PcToggle.IsChecked = true;
-                try
-                {
-                    await ChangeAsync(async () =>
-                    {
-                        translationUsesAudio = false;
-                        await UpdatePcAsync();
-                    });
-                }
-                catch
-                {
-                    PcToggle.IsChecked = false;
-                }
-            };
+            // Startup work does not hang off Loaded: the window is never shown,
+            // so Loaded never fires. StartInBackground drives it instead.
         }
         catch (Exception e)
         {
@@ -199,7 +241,13 @@ public partial class MainWindow : Window
     }
 
     private void SetLiveCaption(string text)
-        => UpdateTextPreservingView(PcText, () => ReplaceLiveCaption(text));
+    {
+        UpdateTextPreservingView(PcText, () => ReplaceLiveCaption(text));
+        // Live Captions may leave its final snapshot onscreen indefinitely.
+        // Translate a stable preview without waiting for the next utterance.
+        liveCaptionTranslationTimer.Stop();
+        liveCaptionTranslationTimer.Start();
+    }
 
     private void ReplaceLiveCaption(string text)
     {
@@ -215,6 +263,7 @@ public partial class MainWindow : Window
 
     private void CommitLiveCaption(string text)
     {
+        liveCaptionTranslationTimer.Stop();
         UpdateTextPreservingView(PcText, () =>
         {
             ReplaceLiveCaption(text);
@@ -325,8 +374,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Format_Click(object sender, RoutedEventArgs e)
+    private async void Format_Click(object sender, RoutedEventArgs e)
     {
+        liveCaptionTranslationTimer.Stop();
         pcTempStrVar = "";
         pcLiveCaptionActive = false;
         PcText.Clear();
@@ -335,6 +385,12 @@ public partial class MainWindow : Window
         translatedCaptionCommitVersion = pcCaptionCommitVersion;
         translatedSource = translatedTarget = "";
         documentTranslator.Clear();
+        if (settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions)
+            await ChangeAsync(async () =>
+            {
+                if (pc is not null) { ++pcGeneration; await pc.DisposeAsync(); pc = null; }
+                if (PcToggle.IsChecked == true) await UpdatePcAsync();
+            });
     }
 
     private void TranslationFormat_Click(object sender, RoutedEventArgs e)
@@ -353,8 +409,129 @@ public partial class MainWindow : Window
         MicText.Clear();
     }
 
-    private void Close_Click(object sender, RoutedEventArgs e) { exiting = true; Close(); }
     private void Minimize_Click(object sender, RoutedEventArgs e) => HideToTray();
+
+    private void TranslationCollapse_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyTranslationCollapsed();
+        SaveCollapsedSections();
+    }
+
+    private void AnswerCollapse_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyAnswerCollapsed();
+        SaveCollapsedSections();
+    }
+
+    private void SaveCollapsedSections()
+    {
+        if (initialized)
+            settings.SaveCollapsedSections(TranslationCollapseToggle.IsChecked == true, AnswerCollapseToggle.IsChecked == true);
+    }
+
+    // A collapsed section keeps its header bar so it can be brought back with the
+    // mouse; only the text area and the space it occupied go away.
+    private void ApplyTranslationCollapsed()
+    {
+        var collapsed = TranslationCollapseToggle.IsChecked == true;
+        if (collapsed)
+        {
+            if (TranslationRow.Height.IsStar) translationRowHeight = TranslationRow.Height;
+            TranslationRow.Height = GridLength.Auto;
+            TranslationSplitterRow.Height = new GridLength(0);
+        }
+        else
+        {
+            TranslationRow.Height = translationRowHeight;
+            TranslationSplitterRow.Height = new GridLength(5);
+        }
+        TranslationSplitter.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        TranslationText.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ApplyAnswerCollapsed()
+    {
+        var collapsed = AnswerCollapseToggle.IsChecked == true;
+        if (collapsed)
+        {
+            if (AnswerColumn.Width.IsStar) answerColumnWidth = AnswerColumn.Width;
+            if (PromptRow.Height.Value > 0) promptRowHeight = PromptRow.Height;
+            AnswerColumn.Width = GridLength.Auto;
+            AnswerSplitterColumn.Width = new GridLength(0);
+            PromptRow.Height = new GridLength(0);
+            PromptSplitterRow.Height = new GridLength(0);
+            AnswerRow.Height = GridLength.Auto;
+        }
+        else
+        {
+            AnswerColumn.Width = answerColumnWidth;
+            AnswerSplitterColumn.Width = new GridLength(5);
+            PromptRow.Height = promptRowHeight;
+            PromptSplitterRow.Height = new GridLength(8);
+            AnswerRow.Height = new GridLength(1, GridUnitType.Star);
+        }
+        var visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        AnswerSplitter.Visibility = visibility;
+        // Hiding the header actions narrows the leftover strip to the title and
+        // this toggle. Ctrl+Shift+Z still sends while the section is collapsed.
+        AnswerHeaderActions.Visibility = visibility;
+        TranslationInputText.Visibility = visibility;
+        PromptSplitter.Visibility = visibility;
+        AnswerText.Visibility = visibility;
+        TelegramBar.Visibility = visibility;
+    }
+
+    // Background start. The window is deliberately never shown: calling Hide()
+    // from Loaded raced the Show() that raised it and sometimes lost, leaving the
+    // window on screen. Creating the handle directly raises SourceInitialized so
+    // the global shortcut still registers, and the first Show comes from the tray.
+    public void StartInBackground()
+    {
+        if (startedInTray || !initialized) return;
+        startedInTray = true;
+        new WindowInteropHelper(this).EnsureHandle();
+        ListenForShowRequests();
+        trayIcon.ShowBalloonTip(1500, "Help Me!",
+            $"Running in the background. Press {settings.RestoreShortcut} or double-click this icon to open it.",
+            Forms.ToolTipIcon.Info);
+        _ = BootstrapAsync();
+    }
+
+    // Launching Help Me! again while it is already running in the tray should
+    // bring the existing window up rather than start a second copy.
+    private void ListenForShowRequests()
+    {
+        try
+        {
+            showRequest = SingleInstance.CreateShowListener();
+            showRequestWait = ThreadPool.RegisterWaitForSingleObject(showRequest,
+                (_, _) => Dispatcher.BeginInvoke(() => { if (!closing) RestoreFromTray(); }),
+                null, Timeout.Infinite, executeOnlyOnce: false);
+        }
+        catch (WaitHandleCannotBeOpenedException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private async Task BootstrapAsync()
+    {
+        var startupError = StartupRegistration.Apply(settings.StartWithWindows);
+        if (startupError is not null) ShowError(startupError);
+        if (chrome is null && !closing) await StartChromeAsync();
+        if (closing || PcToggle.IsChecked == true) return;
+        PcToggle.IsChecked = true;
+        try
+        {
+            await ChangeAsync(async () =>
+            {
+                translationUsesAudio = false;
+                await UpdatePcAsync();
+            });
+        }
+        catch
+        {
+            PcToggle.IsChecked = false;
+        }
+    }
 
     private Forms.NotifyIcon CreateTrayIcon()
     {
@@ -429,27 +606,82 @@ public partial class MainWindow : Window
     private void ApplyEditorAppearance()
     {
         PcText.FontSize = settings.PcFontSize;
-        PcText.Foreground = Brush(settings.PcTextColor);
-        PcText.CaretBrush = Brush(settings.PcCaretColor);
+        PcText.Foreground = EditorBrush(settings.PcTextColor);
+        PcText.CaretBrush = EditorBrush(settings.PcCaretColor);
         TranslationText.FontSize = settings.TranslationFontSize;
-        TranslationText.Foreground = Brush(settings.TranslationTextColor);
+        TranslationText.Foreground = EditorBrush(settings.TranslationTextColor);
         TranslationInputText.FontSize = settings.AnswerInputFontSize;
-        TranslationInputText.Foreground = Brush(settings.AnswerInputTextColor);
+        TranslationInputText.Foreground = EditorBrush(settings.AnswerInputTextColor);
         AnswerText.FontSize = settings.AnswerFontSize;
-        AnswerText.Foreground = Brush(settings.AnswerTextColor);
+        AnswerText.Foreground = EditorBrush(settings.AnswerTextColor);
+    }
+
+    private System.Windows.Media.Brush EditorBrush(string color)
+        => Brush(settings.Theme == "Light" && color.Equals("#CCCCCC", StringComparison.OrdinalIgnoreCase) ? "#242424" : color);
+
+    private void UpdateCaptionSourceHint() => CaptionSourceHint.Text = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions
+        ? "Windows 11 Live Captions  •  Offline captions" : "Whisper  •  Offline captions";
+
+    private void UpdateCaptionWindowControl()
+    {
+        var enabled = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions;
+        CaptionWindowButton.IsEnabled = enabled;
+        CaptionWindowButton.Content = enabled ? "Show" : "Hide";
     }
 
     private void HideToTray()
     {
         Hide();
-        trayIcon.ShowBalloonTip(1200, "Help Me!", "Still running in the system tray.", Forms.ToolTipIcon.Info);
+        var hint = restoreHotkeyRegistered ? $"Press {settings.RestoreShortcut} to restore the window."
+            : "Still running in the system tray. Double-click the tray icon to restore.";
+        trayIcon.ShowBalloonTip(1200, "Help Me!", hint, Forms.ToolTipIcon.Info);
     }
 
     private void RestoreFromTray()
     {
+        ShowInTaskbar = true;
         Show();
         WindowState = WindowState.Normal;
         Activate();
+    }
+
+    private IntPtr HotkeyHook(IntPtr handle, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message == WmHotkey && wParam.ToInt32() == RestoreHotkeyId)
+        {
+            RestoreFromTray();
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    private bool RegisterRestoreShortcut(string shortcut)
+    {
+        if (hotkeySource is null) return false;
+        if (restoreHotkeyRegistered)
+        {
+            UnregisterHotKey(hotkeySource.Handle, RestoreHotkeyId);
+            restoreHotkeyRegistered = false;
+        }
+        KeyGesture gesture;
+        try
+        {
+            gesture = new KeyGestureConverter().ConvertFromInvariantString(shortcut) as KeyGesture
+                ?? throw new FormatException("Invalid shortcut.");
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            return false;
+        }
+        if (System.Numerics.BitOperations.PopCount((uint)gesture.Modifiers) < 2) return false;
+        uint modifiers = 0x4000; // MOD_NOREPEAT
+        if (gesture.Modifiers.HasFlag(ModifierKeys.Alt)) modifiers |= 0x0001;
+        if (gesture.Modifiers.HasFlag(ModifierKeys.Control)) modifiers |= 0x0002;
+        if (gesture.Modifiers.HasFlag(ModifierKeys.Shift)) modifiers |= 0x0004;
+        if (gesture.Modifiers.HasFlag(ModifierKeys.Windows)) modifiers |= 0x0008;
+        restoreHotkeyRegistered = RegisterHotKey(hotkeySource.Handle, RestoreHotkeyId,
+            modifiers, (uint)KeyInterop.VirtualKeyFromKey(gesture.Key));
+        return restoreHotkeyRegistered;
     }
 
     private void AlwaysOnTop_Click(object sender, RoutedEventArgs e) => Topmost = AlwaysOnTopToggle.IsChecked == true;
@@ -476,9 +708,111 @@ public partial class MainWindow : Window
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (key != sendShortcut.Key || Keyboard.Modifiers != sendShortcut.Modifiers) return;
-        e.Handled = true;
-        _ = SendAnswerAsync();
+        // The configurable send shortcut wins, so a user who binds Ctrl+2 to Send
+        // keeps it rather than silently toggling a section instead.
+        if (key == sendShortcut.Key && Keyboard.Modifiers == sendShortcut.Modifiers)
+        {
+            e.Handled = true;
+            _ = SendAnswerAsync();
+            return;
+        }
+        if (key == telegramShortcut.Key && Keyboard.Modifiers == telegramShortcut.Modifiers)
+        {
+            e.Handled = true;
+            _ = SendAnswerToTelegramAsync(TelegramSendButton, SelectionLabel, wholeAnswer: false);
+            return;
+        }
+        if (key == telegramAllShortcut.Key && Keyboard.Modifiers == telegramAllShortcut.Modifiers)
+        {
+            e.Handled = true;
+            _ = SendAnswerToTelegramAsync(TelegramSendAllButton, AllLabel, wholeAnswer: true);
+            return;
+        }
+        if (TryToggleSection(key, Keyboard.Modifiers)) e.Handled = true;
+    }
+
+    private async void TelegramSend_Click(object sender, RoutedEventArgs e)
+        => await SendAnswerToTelegramAsync(TelegramSendButton, SelectionLabel, wholeAnswer: false);
+
+    private async void TelegramSendAll_Click(object sender, RoutedEventArgs e)
+        => await SendAnswerToTelegramAsync(TelegramSendAllButton, AllLabel, wholeAnswer: true);
+
+    // A selection inside the answer wins over the whole text, unless the caller
+    // asked for everything. Whitespace-only selections fall back to the whole
+    // answer rather than refusing to send.
+    private string GetTelegramMessage(bool wholeAnswer)
+    {
+        if (wholeAnswer) return AnswerText.Text.Trim();
+        var selected = AnswerText.SelectionLength > 0 ? AnswerText.SelectedText.Trim() : "";
+        return selected.Length > 0 ? selected : AnswerText.Text.Trim();
+    }
+
+    // The answer goes to Telegram as its own new message.
+    private async Task SendAnswerToTelegramAsync(Button button, string restingLabel, bool wholeAnswer)
+    {
+        if (closing || telegramSending) return;
+        var message = GetTelegramMessage(wholeAnswer);
+        if (message.Length == 0)
+        {
+            ShowError("There is no AI answer to send. Select text in panel 04, or send a prompt first.");
+            return;
+        }
+        if (chrome is null) { ShowError("Chrome debug session is not available."); return; }
+        var target = settings.MessengerTarget;
+        telegramSending = true;
+        // Both buttons drive one browser tab, so neither may start a second send.
+        TelegramSendButton.IsEnabled = TelegramSendAllButton.IsEnabled = false;
+        button.Content = "Sending…";
+        Status.Visibility = Visibility.Collapsed;
+        var browser = chrome;
+        var delivered = false;
+        try
+        {
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await Task.Run(() => browser.SendPromptAsync(message, target, null, cancellation.Token));
+            delivered = true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!closing) ShowError($"{target} did not accept the message in time. Check its tab in Chrome.");
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException or HttpRequestException)
+        {
+            if (!closing) ShowError(error.Message);
+        }
+        finally
+        {
+            telegramSending = false;
+            if (!closing)
+            {
+                TelegramSendButton.IsEnabled = TelegramSendAllButton.IsEnabled = true;
+                // A short confirmation on the button itself: the status line is
+                // for errors, and a sent message needs no standing notice.
+                button.Content = delivered ? "Sent" : restingLabel;
+                if (delivered) await RestoreTelegramButtonAsync(button, restingLabel);
+            }
+        }
+    }
+
+    private async Task RestoreTelegramButtonAsync(Button button, string restingLabel)
+    {
+        var token = ++telegramConfirmation;
+        await Task.Delay(TimeSpan.FromSeconds(1.5));
+        if (!closing && token == telegramConfirmation) button.Content = restingLabel;
+    }
+
+    // Ctrl+2 and Ctrl+4 hide or show sections 02 and 04.
+    private bool TryToggleSection(Key key, ModifierKeys modifiers)
+    {
+        if (modifiers != ModifierKeys.Control) return false;
+        ToggleButton section;
+        if (key is Key.D2 or Key.NumPad2) section = TranslationCollapseToggle;
+        else if (key is Key.D4 or Key.NumPad4) section = AnswerCollapseToggle;
+        else return false;
+        section.IsChecked = section.IsChecked != true;
+        if (section == TranslationCollapseToggle) ApplyTranslationCollapsed(); else ApplyAnswerCollapsed();
+        SaveCollapsedSections();
+        return true;
     }
 
     private void ApplySendShortcut()
@@ -496,6 +830,32 @@ public partial class MainWindow : Window
         var label = new KeyGestureConverter().ConvertToInvariantString(sendShortcut) ?? "Ctrl+Shift+Z";
         SendShortcutHint.Text = $"{label}  Send";
         AnswerSendButton.ToolTip = $"Send captions ({label})";
+        try
+        {
+            telegramShortcut = new KeyGestureConverter().ConvertFromInvariantString(settings.TelegramShortcut) as KeyGesture
+                ?? new KeyGesture(Key.T, ModifierKeys.Control | ModifierKeys.Shift);
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            telegramShortcut = new KeyGesture(Key.T, ModifierKeys.Control | ModifierKeys.Shift);
+            settings.TelegramShortcut = "Ctrl+Shift+T";
+        }
+        var telegramLabel = new KeyGestureConverter().ConvertToInvariantString(telegramShortcut) ?? "Ctrl+Shift+T";
+        TelegramSendButton.ToolTip =
+            $"Send the text selected in the AI answer to {settings.MessengerTarget}, or all of it when nothing is selected ({telegramLabel})";
+        try
+        {
+            telegramAllShortcut = new KeyGestureConverter().ConvertFromInvariantString(settings.TelegramAllShortcut) as KeyGesture
+                ?? new KeyGesture(Key.A, ModifierKeys.Control | ModifierKeys.Shift);
+        }
+        catch (Exception error) when (error is NotSupportedException or ArgumentException or FormatException)
+        {
+            telegramAllShortcut = new KeyGesture(Key.A, ModifierKeys.Control | ModifierKeys.Shift);
+            settings.TelegramAllShortcut = "Ctrl+Shift+A";
+        }
+        var allLabel = new KeyGestureConverter().ConvertToInvariantString(telegramAllShortcut) ?? "Ctrl+Shift+A";
+        TelegramSendAllButton.ToolTip =
+            $"Send the whole AI answer to {settings.MessengerTarget}, ignoring any selection ({allLabel})";
     }
 
     private void AnswerFormat_Click(object sender, RoutedEventArgs e)
@@ -602,39 +962,97 @@ public partial class MainWindow : Window
             });
             Action<string> onStatus = message => WorkerMessage(message, () => generation == pcGeneration);
             ICaptionSession session;
-            await engine.InitializeAsync();
-            session = new AudioSession(false, engine, settings, "en", onCaption, onStatus, onPreview);
-            try { await session.StartAsync(); pc = session; }
+            if (settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions)
+                session = new WindowsLiveCaptionsSession(onCaption, onStatus, onPreview);
+            else
+            {
+                await engine.InitializeAsync();
+                session = new AudioSession(false, engine, settings, "en", onCaption, onStatus, onPreview);
+            }
+            try
+            {
+                await session.StartAsync();
+                pc = session;
+                CaptionWindowButton.Content = settings.CaptionMethod == CaptionMethod.WindowsLiveCaptions ? "Show" : "Hide";
+            }
             catch { await session.DisposeAsync(); throw; }
         }
         else if (!needed && pc is not null)
         {
+            liveCaptionTranslationTimer.Stop();
             ++pcGeneration;
             await pc.DisposeAsync(); pc = null;
+            CaptionWindowButton.Content = "Show";
         }
     }
 
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SettingsWindow(settings.CaptionMethod, settings.ChromeDebugPort,
-            settings.AiProvider, settings.AiProject, settings.AiSession,
-            settings.PcFontSize, settings.PcTextColor, settings.PcCaretColor,
-            settings.TranslationFontSize, settings.TranslationTextColor,
-            settings.AnswerInputFontSize, settings.AnswerInputTextColor,
-            settings.AnswerFontSize, settings.AnswerTextColor, settings.SendShortcut) { Owner = this };
-        if (dialog.ShowDialog() != true) return;
+        var dialog = new SettingsWindow(settings) { Owner = this };
+        dialog.OpenChromeAsync = async port =>
+        {
+            if (chrome is not null) { await chrome.DisposeAsync(); chrome = null; }
+            // Use the port shown in the dialog so the button matches what the
+            // user just typed, without committing it until they press Save.
+            chrome = new ChromeDebugSession(port);
+            try { await chrome.StartAsync(); }
+            catch { chrome = null; throw; }
+        };
+        dialog.CloseChromeAsync = async () =>
+        {
+            answerCancellation?.Cancel();
+            if (chrome is not null) { await chrome.CloseAsync(); chrome = null; }
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            AppTheme.Apply(settings.Theme);
+            return;
+        }
         await ChangeAsync(async () =>
         {
             var previousPort = settings.ChromeDebugPort;
             settings.SaveChromeDebugPort(dialog.ChromeDebugPort);
             settings.SaveAiPreferences(dialog.AiProvider, dialog.AiProject, dialog.AiSession);
             settings.SaveSendShortcut(dialog.SendShortcut);
+            settings.SaveTelegramShortcut(dialog.TelegramShortcut);
+            settings.SaveTelegramAllShortcut(dialog.TelegramAllShortcut);
+            settings.SaveMessengerTarget(dialog.MessengerTarget);
+            if (dialog.StartWithWindows != settings.StartWithWindows)
+            {
+                var startupError = StartupRegistration.Apply(dialog.StartWithWindows);
+                if (startupError is not null) ShowError(startupError);
+                else settings.SaveStartWithWindows(dialog.StartWithWindows);
+            }
+            if (dialog.RestoreShortcut != settings.RestoreShortcut)
+            {
+                var previous = settings.RestoreShortcut;
+                if (RegisterRestoreShortcut(dialog.RestoreShortcut))
+                    settings.SaveRestoreShortcut(dialog.RestoreShortcut);
+                else
+                {
+                    RegisterRestoreShortcut(previous);
+                    ShowError($"{dialog.RestoreShortcut} is already in use. The restore shortcut remains {previous}.");
+                }
+            }
+            settings.SaveTheme(dialog.SelectedTheme);
+            // Persist every Settings value on every Save, including the source
+            // selected when it is already the current source.
+            var captionMethodChanged = settings.CaptionMethod != dialog.SelectedMethod;
+            settings.SaveCaptionMethod(dialog.SelectedMethod);
+            AppTheme.Apply(settings.Theme);
             settings.SaveEditorAppearance(dialog.PcFontSize, dialog.PcTextColor, dialog.PcCaretColor,
                 dialog.TranslationFontSize, dialog.TranslationTextColor,
                 dialog.AnswerInputFontSize, dialog.AnswerInputTextColor,
                 dialog.AnswerFontSize, dialog.AnswerTextColor);
             ApplyEditorAppearance();
             ApplySendShortcut();
+            if (captionMethodChanged)
+            {
+                UpdateCaptionSourceHint();
+                UpdateCaptionWindowControl();
+                if (pc is not null) { ++pcGeneration; await pc.DisposeAsync(); pc = null; }
+                await UpdatePcAsync();
+            }
             if (previousPort != dialog.ChromeDebugPort)
             {
                 answerCancellation?.Cancel();
@@ -654,6 +1072,12 @@ public partial class MainWindow : Window
         });
     }
 
+    private void CaptionWindowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (pc is WindowsLiveCaptionsSession captions)
+            CaptionWindowButton.Content = captions.ToggleVisibility() ? "Hide" : "Show";
+    }
+
     private async void TranslationToggle_Click(object sender, RoutedEventArgs e)
     {
         await ChangeAsync(async () =>
@@ -663,7 +1087,12 @@ public partial class MainWindow : Window
                 var generation = ++translationGeneration;
                 translatedSource = translatedTarget = "";
                 documentTranslator.Clear();
-                if (pcFinalCaptionText.Length > 0) ++pcCaptionCommitVersion;
+                var existingCaption = PcText.Text.Trim();
+                if (existingCaption.Length > 0)
+                {
+                    pcFinalCaptionText = existingCaption;
+                    ++pcCaptionCommitVersion;
+                }
                 translationUsesAudio = PcToggle.IsChecked != true;
                 try
                 {
@@ -741,6 +1170,10 @@ public partial class MainWindow : Window
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
         if (closed) return;
+        // The title bar has no close button, so closing a visible window always
+        // means "get out of my way": it returns to the tray and keeps capturing.
+        // A hidden window has no user-reachable close, so a close arriving there
+        // is the OS or a host shutting us down and must be allowed through.
         if (!exiting && IsVisible)
         {
             e.Cancel = true;
@@ -750,6 +1183,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (closing) return;
         closing = true; IsEnabled = false;
+        liveCaptionTranslationTimer.Stop();
         answerCancellation?.Cancel();
         await changes.WaitAsync();
         try
@@ -762,6 +1196,15 @@ public partial class MainWindow : Window
         }
         finally
         {
+            showRequestWait?.Unregister(null);
+            showRequestWait = null;
+            showRequest?.Dispose();
+            showRequest = null;
+            SingleInstance.Release();
+            if (restoreHotkeyRegistered && hotkeySource is not null)
+                UnregisterHotKey(hotkeySource.Handle, RestoreHotkeyId);
+            restoreHotkeyRegistered = false;
+            hotkeySource?.RemoveHook(HotkeyHook);
             closed = true;
             trayIcon.Visible = false;
             trayIcon.Dispose();

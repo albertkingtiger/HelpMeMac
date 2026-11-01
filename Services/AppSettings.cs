@@ -18,6 +18,14 @@ public sealed class AppSettings
     public string AiProject { get; set; } = "";
     public string AiSession { get; set; } = "";
     public string SendShortcut { get; set; } = "Ctrl+Shift+Z";
+    public string RestoreShortcut { get; set; } = "Ctrl+Alt+H";
+    public string TelegramShortcut { get; set; } = "Ctrl+Shift+T";
+    public string TelegramAllShortcut { get; set; } = "Ctrl+Shift+A";
+    public string MessengerTarget { get; set; } = "Telegram";
+    public string Theme { get; set; } = "Dark";
+    public bool StartWithWindows { get; set; } = true;
+    public bool TranslationCollapsed { get; set; }
+    public bool AnswerCollapsed { get; set; }
     public double WindowWidth { get; set; } = 1060;
     public double WindowHeight { get; set; } = 860;
     public double PcFontSize { get; set; } = 14;
@@ -57,10 +65,19 @@ public sealed class AppSettings
                 if (saved is not null)
                 {
                     result.ChromeDebugPort = saved.ChromeDebugPort;
-                    result.AiProvider = saved.AiProvider is "ChatGPT" or "Claude" ? saved.AiProvider : result.AiProvider;
+                    result.AiProvider = saved.AiProvider is "ChatGPT" or "Claude" or "Telegram" ? saved.AiProvider : result.AiProvider;
                     result.AiProject = saved.AiProject ?? "";
                     result.AiSession = saved.AiSession ?? "";
                     if (!string.IsNullOrWhiteSpace(saved.SendShortcut)) result.SendShortcut = saved.SendShortcut;
+                    if (!string.IsNullOrWhiteSpace(saved.RestoreShortcut)) result.RestoreShortcut = saved.RestoreShortcut;
+                    if (!string.IsNullOrWhiteSpace(saved.TelegramShortcut)) result.TelegramShortcut = saved.TelegramShortcut;
+                    if (!string.IsNullOrWhiteSpace(saved.TelegramAllShortcut)) result.TelegramAllShortcut = saved.TelegramAllShortcut;
+                    result.MessengerTarget = Messenger.Find(saved.MessengerTarget)?.Name ?? result.MessengerTarget;
+                    result.Theme = saved.Theme is "Light" or "Dark" ? saved.Theme : "Dark";
+                    result.StartWithWindows = saved.StartWithWindows;
+                    result.TranslationCollapsed = saved.TranslationCollapsed;
+                    result.AnswerCollapsed = saved.AnswerCollapsed;
+                    result.CaptionMethod = saved.CaptionMethod is CaptionMethod.WindowsLiveCaptions ? saved.CaptionMethod : CaptionMethod.Whisper;
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
@@ -82,10 +99,9 @@ public sealed class AppSettings
 
     public void SaveCaptionMethod(CaptionMethod method)
     {
-        if (method != CaptionMethod.Whisper) throw new ArgumentOutOfRangeException(nameof(method));
+        if (!Enum.IsDefined(method)) throw new ArgumentOutOfRangeException(nameof(method));
         CaptionMethod = method; SavePreferences();
     }
-    public void RefreshCaptionMethod() => CaptionMethod = CaptionMethod.Whisper;
     public void SaveChromeDebugPort(int port)
     {
         if (port is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
@@ -93,13 +109,53 @@ public sealed class AppSettings
     }
     public void SaveAiPreferences(string provider, string project, string session)
     {
-        if (provider is not ("ChatGPT" or "Claude")) throw new ArgumentOutOfRangeException(nameof(provider));
+        if (provider is not ("ChatGPT" or "Claude" or "Telegram")) throw new ArgumentOutOfRangeException(nameof(provider));
         AiProvider = provider; AiProject = project ?? ""; AiSession = session ?? ""; SavePreferences();
     }
     public void SaveSendShortcut(string shortcut)
     {
         if (string.IsNullOrWhiteSpace(shortcut)) throw new ArgumentException("Shortcut cannot be empty.", nameof(shortcut));
         SendShortcut = shortcut.Trim();
+        SavePreferences();
+    }
+    public void SaveRestoreShortcut(string shortcut)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) throw new ArgumentException("Shortcut cannot be empty.", nameof(shortcut));
+        RestoreShortcut = shortcut.Trim();
+        SavePreferences();
+    }
+    public void SaveTelegramShortcut(string shortcut)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) throw new ArgumentException("Shortcut cannot be empty.", nameof(shortcut));
+        TelegramShortcut = shortcut.Trim();
+        SavePreferences();
+    }
+    public void SaveTelegramAllShortcut(string shortcut)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) throw new ArgumentException("Shortcut cannot be empty.", nameof(shortcut));
+        TelegramAllShortcut = shortcut.Trim();
+        SavePreferences();
+    }
+    public void SaveMessengerTarget(string target)
+    {
+        MessengerTarget = Messenger.Find(target)?.Name ?? throw new ArgumentOutOfRangeException(nameof(target));
+        SavePreferences();
+    }
+    public void SaveTheme(string theme)
+    {
+        if (theme is not ("Light" or "Dark")) throw new ArgumentOutOfRangeException(nameof(theme));
+        Theme = theme;
+        SavePreferences();
+    }
+    public void SaveStartWithWindows(bool enabled)
+    {
+        StartWithWindows = enabled;
+        SavePreferences();
+    }
+    public void SaveCollapsedSections(bool translationCollapsed, bool answerCollapsed)
+    {
+        TranslationCollapsed = translationCollapsed;
+        AnswerCollapsed = answerCollapsed;
         SavePreferences();
     }
     public void SaveWindowSize(double width, double height)
@@ -131,7 +187,8 @@ public sealed class AppSettings
     {
         var json = JsonSerializer.Serialize(new Preferences(ChromeDebugPort, AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
-            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut),
+            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut, Theme, CaptionMethod, RestoreShortcut,
+            StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget),
             new JsonSerializerOptions { WriteIndented = true });
         try
         {
@@ -156,7 +213,10 @@ public sealed class AppSettings
         double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
         double AnswerInputFontSize = 14, string AnswerInputTextColor = "#CCCCCC",
         double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC",
-        string SendShortcut = "Ctrl+Shift+Z");
+        string SendShortcut = "Ctrl+Shift+Z", string Theme = "Dark", CaptionMethod CaptionMethod = CaptionMethod.Whisper,
+        string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
+        bool TranslationCollapsed = false, bool AnswerCollapsed = false,
+        string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram");
     public static string Resolve(string path)
     {
         var local = Path.GetFullPath(path, Root);

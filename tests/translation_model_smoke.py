@@ -9,6 +9,8 @@ root = Path(__file__).resolve().parents[1]
 samples = [
     "Alex bought a laptop. It was expensive, so he returned it.",
     "If the server fails, we switch to the backup without losing any data.",
+    "Yeah, yeah, yeah.",
+    "Uh, I guess two or three in US time, two PM or 3:00 PM. Well, I'll just check about it.",
 ]
 payload = "\n".join(json.dumps({"text": text, "source": "eng_Latn"}) for text in samples) + "\n"
 result = subprocess.run(
@@ -25,6 +27,7 @@ assert len(replies) == len(samples) + 1, replies
 for source, reply in zip(samples, replies[1:]):
     assert "error" not in reply and reply.get("text", "").strip(), reply
     assert any("\uac00" <= char <= "\ud7a3" for char in reply["text"]), reply
+    assert len(reply["text"]) < max(120, len(source) * 4), reply
     print(source)
     print(reply["text"].encode("unicode_escape").decode("ascii"))
 print("PASS: context samples produce Korean translations with the installed offline model")
