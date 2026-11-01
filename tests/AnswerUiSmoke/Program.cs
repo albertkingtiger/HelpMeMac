@@ -103,6 +103,12 @@ internal static class Program
                 var answerColumn = (ColumnDefinition)window.FindName("AnswerColumn");
                 var promptRow = (RowDefinition)window.FindName("PromptRow");
                 var answerActions = (StackPanel)window.FindName("AnswerHeaderActions");
+                // Collapsing saves preferences, and these run against the real
+                // settings file, so whatever it says now is put back at the end.
+                var collapseSettings = (AppSettings)typeof(MainWindow)
+                    .GetField("settings", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
+                var savedCollapse = (collapseSettings.TranslationCollapsed, collapseSettings.AnswerCollapsed,
+                    collapseSettings.AiPanelCollapsed, collapseSettings.ChatPanelCollapsed);
                 var collapseTranslation = typeof(MainWindow).GetMethod("TranslationCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var collapseAnswer = typeof(MainWindow).GetMethod("AnswerCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 void ClickCollapse(MethodInfo handler, ToggleButton toggle)
@@ -214,6 +220,8 @@ internal static class Program
                     throw new Exception("Switching back must restore the browser column's width.");
                 engineSettings.BrowserEngine = savedEngine;
                 applyEngine.Invoke(window, null);
+                collapseSettings.SaveCollapsedSections(savedCollapse.Item1, savedCollapse.Item2,
+                    savedCollapse.Item3, savedCollapse.Item4);
                 Console.WriteLine("PASS: panels 05 and 06 follow the browser engine, their titles and Ctrl+5/Ctrl+6");
 
                 // Send Telegram forwards the answer, or just the part selected in it.
