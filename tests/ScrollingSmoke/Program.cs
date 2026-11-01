@@ -94,27 +94,6 @@ internal static class Program
                 AssertView(source, offset, 100, 30);
                 Console.WriteLine("PASS: near-bottom following and immediate user scrolling remain independent of caret focus");
 
-                var answer = (TextBox)window.FindName("AnswerText");
-                ((Grid)answer.Parent).Children.Remove(answer);
-                host.Content = answer;
-                answer.Focus();
-                var reply = source.Text;
-                answer.Text = reply;
-                answer.Select(100, 25);
-                await Settle();
-                answer.ScrollToVerticalOffset(250);
-                await Settle();
-                offset = answer.VerticalOffset;
-                Invoke(window, "DisplayAnswer", reply + " Streamed answer text", 0);
-                await Settle();
-                AssertView(answer, offset, 100, 25);
-                answer.ScrollToEnd();
-                await Settle();
-                Invoke(window, "DisplayAnswer", reply + string.Join(Environment.NewLine, Enumerable.Repeat("New response line.", 10)), 0);
-                await Settle();
-                AssertBottom(answer);
-                AssertSelection(answer, 100, 25);
-                Console.WriteLine("PASS: streamed answers preserve manual scrolling and resume following at the bottom");
             }
             catch (Exception error) { failure = error; }
             finally

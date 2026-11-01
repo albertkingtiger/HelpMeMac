@@ -54,7 +54,7 @@
                    Margin="0,10,0,0" ToolTip="Sends the text selected in the AI answer to Telegram, or all of it when nothing is selected"/>
           <TextBlock Grid.Row="8" Text="Send answers to" VerticalAlignment="Center" Margin="0,10,0,0"/>
           <ComboBox Grid.Row="8" Grid.Column="1" x:Name="MessengerCombo" Margin="0,10,0,0"
-                    ToolTip="Which chat app the panel 04 buttons post the AI answer to"/>
+                    ToolTip="Which chat app the panel 05 buttons post the AI answer to"/>
           <TextBlock Grid.Row="7" Text="All Send" VerticalAlignment="Center" Margin="0,10,0,0"/>
           <TextBox Grid.Row="7" Grid.Column="1" x:Name="TelegramAllShortcutText" Style="{StaticResource SettingsInput}"
                    IsReadOnly="True" IsReadOnlyCaretVisible="False" PreviewKeyDown="TelegramAllShortcutText_PreviewKeyDown"
@@ -70,7 +70,7 @@
                    ToolTip="Characters in each message after the first, 20 to 4000"/>
           <TextBlock Text="characters" VerticalAlignment="Center" Margin="10,0,0,0"/>
         </StackPanel>
-        <TextBlock Text="Auto-send itself is the checkbox at the bottom of panel 04. While it is on, the opening message goes out as soon as the answer reaches the first size, so the reader sees something straight away, and the rest follow at the second size. Messages are whole sentences, so a size is a target to reach rather than a place to cut. The first message of each answer starts with a line of dashes. A code block is held back until it closes, and the rest of the answer follows when it ends. Text that has already gone out cannot be recalled if the AI rewrites it."
+        <TextBlock Text="Auto-send itself is the checkbox at the bottom of panel 05. While it is on, the opening message goes out as soon as the answer reaches the first size, so the reader sees something straight away, and the rest follow at the second size. Messages are whole sentences, so a size is a target to reach rather than a place to cut. The first message of each answer starts with a line of dashes. A code block is held back until it closes, and the rest of the answer follows when it ends. Text that has already gone out cannot be recalled if the AI rewrites it."
                    Foreground="{DynamicResource Muted}" Margin="0,8,0,20" TextWrapping="Wrap"/>
 
         <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
@@ -94,13 +94,6 @@
           <TextBox Grid.Row="2" Grid.Column="1" x:Name="TranslationFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
           <Button Grid.Row="2" Grid.Column="2" x:Name="TranslationTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose translation text color"/>
 
-          <TextBlock Grid.Row="3" Text="04  PROMPT" VerticalAlignment="Center"/>
-          <TextBox Grid.Row="3" Grid.Column="1" x:Name="AnswerInputFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
-          <Button Grid.Row="3" Grid.Column="2" x:Name="AnswerInputTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose prompt text color"/>
-
-          <TextBlock Grid.Row="4" Text="04  ANSWER" VerticalAlignment="Center"/>
-          <TextBox Grid.Row="4" Grid.Column="1" x:Name="AnswerFontSizeText" Style="{StaticResource SettingsInput}" Width="56" HorizontalAlignment="Left" Margin="0,4"/>
-          <Button Grid.Row="4" Grid.Column="2" x:Name="AnswerTextColorButton" Click="ColorButton_Click" Margin="0,4,8,4" ToolTip="Choose answer text color"/>
         </Grid>
         <TextBlock Text="Font sizes can be from 8 to 48." Foreground="{DynamicResource Muted}" FontSize="11" Margin="146,10,0,0"/>
       </StackPanel>

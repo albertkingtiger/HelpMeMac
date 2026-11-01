@@ -79,20 +79,26 @@ internal static class Program
                 if (Prompt() != "Replacement caption") throw new Exception("Clearing the document must reset its old bookmark.");
                 Console.WriteLine("PASS: full caption, saved suffix, selection ignored, empty suffix error and bookmark reset");
                 var display = typeof(MainWindow).GetMethod("DisplayAnswer", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                var answer = (TextBox)window.FindName("AnswerText");
+                var answerField = typeof(MainWindow).GetField("answerText", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                var version = typeof(MainWindow).GetField("answerOutputVersion", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                string Answer() => (string)answerField.GetValue(window)!;
                 var microphone = (TextBox)window.FindName("MicText");
+                version.SetValue(window, 0);
                 await Task.Run(() => display.Invoke(window, new object[] { "Streamed answer", 0 }));
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-                if (answer.Text != "Streamed answer" || microphone.Text.Length != 0) throw new Exception("AI output must reach only the Answer box.");
-                Console.WriteLine("PASS: background response reaches Answer only");
-                typeof(MainWindow).GetMethod("AnswerFormat_Click", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object?[] { null, new RoutedEventArgs() });
+                if (Answer() != "Streamed answer" || microphone.Text.Length != 0)
+                    throw new Exception("A reply must reach the answer and nothing else.");
+                Console.WriteLine("PASS: background response reaches the answer only");
+                // A reply from the request before last must not overwrite it.
+                version.SetValue(window, 1);
                 await Task.Run(() => display.Invoke(window, new object[] { "Stale answer", 0 }));
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-                if (answer.Text.Length != 0) throw new Exception("Format must discard queued updates from the previous reply.");
+                if (Answer() != "Streamed answer")
+                    throw new Exception("A reply from a superseded request must be discarded.");
                 await Task.Run(() => display.Invoke(window, new object[] { "Next answer", 1 }));
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-                if (answer.Text != "Next answer") throw new Exception("The next answer must display after Format.");
-                Console.WriteLine("PASS: Format suppresses stale replies while allowing the next reply");
+                if (Answer() != "Next answer") throw new Exception("The current request's reply must land.");
+                Console.WriteLine("PASS: a superseded reply is discarded and the current one lands");
 
                 // Collapsing must free the section's space, keep its header as the
                 // way back, and survive a round trip to the user's dragged sizes.
@@ -107,15 +113,14 @@ internal static class Program
                 // settings file, so whatever it says now is put back at the end.
                 var collapseSettings = (AppSettings)typeof(MainWindow)
                     .GetField("settings", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
-                var savedCollapse = (collapseSettings.TranslationCollapsed, collapseSettings.AnswerCollapsed,
+                var savedCollapse = (collapseSettings.TranslationCollapsed,
                     collapseSettings.AiPanelCollapsed, collapseSettings.ChatPanelCollapsed);
                 var collapseTranslation = typeof(MainWindow).GetMethod("TranslationCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                foreach (var shown in new[] { translationToggle, answerToggle,
+                foreach (var shown in new[] { translationToggle,
                              (ToggleButton)window.FindName("AiPanelCollapseToggle"),
                              (ToggleButton)window.FindName("ChatPanelCollapseToggle") })
                     shown.IsChecked = false;
                 typeof(MainWindow).GetMethod("ApplyTranslationCollapsed", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
-                typeof(MainWindow).GetMethod("ApplyAnswerCollapsed", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
                 typeof(MainWindow).GetMethod("ApplyBrowserPanels", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
                 var collapseAnswer = typeof(MainWindow).GetMethod("AnswerCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 void ClickCollapse(MethodInfo handler, ToggleButton toggle)
@@ -133,35 +138,7 @@ internal static class Program
                     translation.Visibility != Visibility.Visible)
                     throw new Exception("Expanding 02 must restore the dragged row size.");
 
-                // Panel 05 shares this column, so collapsing 04 releases its own
-                // row and leaves the column's width to the page below it.
-                var answerPanelRow = (RowDefinition)window.FindName("AnswerPanelRow");
-                var aiPanelRowShared = (RowDefinition)window.FindName("AiPanelRow");
-                var aiWebViewShared = (UIElement)window.FindName("AiWebView");
-                ClickCollapse(collapseAnswer, answerToggle);
-                if (answerPanelRow.Height != GridLength.Auto || promptRow.Height.Value != 0 ||
-                    answer.Visibility != Visibility.Collapsed || answerActions.Visibility != Visibility.Collapsed)
-                    throw new Exception("Collapsing 04 must release its row and narrow the leftover header.");
-                if (!answerColumn.Width.IsStar || !aiPanelRowShared.Height.IsStar ||
-                    aiWebViewShared.Visibility != Visibility.Visible)
-                    throw new Exception("Collapsing 04 must leave panel 05 and the column it shares alone.");
-                ClickCollapse(collapseAnswer, answerToggle);
-                if (!answerColumn.Width.IsStar || promptRow.Height.Value != 100 ||
-                    answer.Visibility != Visibility.Visible || answerActions.Visibility != Visibility.Visible)
-                    throw new Exception("Expanding 04 must restore the prompt, answer and header actions.");
-                // With both of the column's panels collapsed there is nothing
-                // left to show, so the width does go back to the rest.
-                var aiToggleShared = (ToggleButton)window.FindName("AiPanelCollapseToggle");
-                var collapseAi = typeof(MainWindow).GetMethod("AiPanelCollapse_Click", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                ClickCollapse(collapseAnswer, answerToggle);
-                ClickCollapse(collapseAi, aiToggleShared);
-                if (answerColumn.Width != GridLength.Auto)
-                    throw new Exception("With 04 and 05 both collapsed the column's width must be released.");
-                ClickCollapse(collapseAi, aiToggleShared);
-                if (!answerColumn.Width.IsStar)
-                    throw new Exception("Showing panel 05 again must take the column's width back.");
-                ClickCollapse(collapseAnswer, answerToggle);
-                Console.WriteLine("PASS: sections 02 and 04 collapse to their headers and restore dragged sizes");
+                Console.WriteLine("PASS: section 02 collapses to its header and restores the dragged row size");
 
                 var tryToggle = typeof(MainWindow).GetMethod("TryToggleSection", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 bool Press(Key key, ModifierKeys modifiers) => (bool)tryToggle.Invoke(window, new object[] { key, modifiers })!;
@@ -169,21 +146,19 @@ internal static class Program
                     throw new Exception("Ctrl+2 must collapse section 02.");
                 if (!Press(Key.NumPad2, ModifierKeys.Control) || translationToggle.IsChecked != false)
                     throw new Exception("Ctrl+2 must expand section 02 again, from the numeric keypad too.");
-                if (!Press(Key.D4, ModifierKeys.Control) || answerToggle.IsChecked != true || answer.Visibility != Visibility.Collapsed)
-                    throw new Exception("Ctrl+4 must collapse section 04.");
-                if (!Press(Key.D4, ModifierKeys.Control) || answerToggle.IsChecked != false)
-                    throw new Exception("Ctrl+4 must expand section 04 again.");
                 if (Press(Key.D3, ModifierKeys.Control) || Press(Key.D2, ModifierKeys.Shift) ||
                     Press(Key.D2, ModifierKeys.Control | ModifierKeys.Shift) || Press(Key.D2, ModifierKeys.None))
                     throw new Exception("Only plain Ctrl+2 and Ctrl+4 may toggle a section.");
-                Console.WriteLine("PASS: Ctrl+2 and Ctrl+4 toggle their sections and ignore other combinations");
+                Console.WriteLine("PASS: Ctrl+2 toggles its section and other combinations are ignored");
 
                 // Panels 05 and 06 hold the AI and chat pages.
                 var engineSettings = (AppSettings)typeof(MainWindow)
                     .GetField("settings", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
                 var applyPanels = typeof(MainWindow).GetMethod("ApplyBrowserPanels", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var browserColumn = (ColumnDefinition)window.FindName("BrowserColumn");
-                var aiPanelRow = (RowDefinition)window.FindName("AiPanelRow");
+                var answerColumn2 = (ColumnDefinition)window.FindName("AnswerColumn");
+                var aiBar = (Border)window.FindName("TelegramBar");
+                var aiActions = (StackPanel)window.FindName("AiHeaderActions");
                 var aiPanelToggle = (ToggleButton)window.FindName("AiPanelCollapseToggle");
                 var chatPanelToggle = (ToggleButton)window.FindName("ChatPanelCollapseToggle");
                 var aiWebView = (UIElement)window.FindName("AiWebView");
@@ -198,54 +173,43 @@ internal static class Program
                 if (aiTitle.Text != $"05  {engineSettings.AiProvider.ToUpperInvariant()}" ||
                     chatTitle.Text != $"06  {engineSettings.MessengerTarget.ToUpperInvariant()}")
                     throw new Exception("Panel titles must name the provider and destination in use.");
+                // Panel 05 is the whole middle column, so collapsing it gives the
+                // column's width back and takes its send bar with it.
                 if (!Press(Key.D5, ModifierKeys.Control) || aiPanelToggle.IsChecked != true ||
-                    aiWebView.Visibility != Visibility.Collapsed || aiPanelRow.Height.IsStar)
-                    throw new Exception("Ctrl+5 must collapse panel 05 to its header.");
+                    aiWebView.Visibility != Visibility.Collapsed || aiBar.Visibility != Visibility.Collapsed ||
+                    aiActions.Visibility != Visibility.Collapsed || answerColumn2.Width != GridLength.Auto)
+                    throw new Exception("Ctrl+5 must collapse panel 05 to its header and release its column.");
                 if (!Press(Key.NumPad5, ModifierKeys.Control) || aiPanelToggle.IsChecked != false ||
-                    aiWebView.Visibility != Visibility.Visible || !aiPanelRow.Height.IsStar)
-                    throw new Exception("Ctrl+5 must restore panel 05 and the height it had.");
+                    aiWebView.Visibility != Visibility.Visible || aiBar.Visibility != Visibility.Visible ||
+                    !answerColumn2.Width.IsStar)
+                    throw new Exception("Ctrl+5 must restore panel 05, its send bar and the width it had.");
                 if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != true ||
                     chatWebView.Visibility != Visibility.Collapsed || browserColumn.Width != GridLength.Auto)
                     throw new Exception("Ctrl+6 must collapse panel 06 and release its column.");
                 if (!Press(Key.D6, ModifierKeys.Control) || chatPanelToggle.IsChecked != false ||
                     !browserColumn.Width.IsStar)
                     throw new Exception("Ctrl+6 must expand panel 06 and take the column back.");
-                collapseSettings.SaveCollapsedSections(savedCollapse.Item1, savedCollapse.Item2,
-                    savedCollapse.Item3, savedCollapse.Item4);
+                collapseSettings.SaveCollapsedSections(savedCollapse.Item1, savedCollapse.Item2, savedCollapse.Item3);
                 Console.WriteLine("PASS: panels 05 and 06 carry their titles and follow Ctrl+5 and Ctrl+6");
 
-                // Send Telegram forwards the answer, or just the part selected in it.
-                var telegramMessage = typeof(MainWindow).GetMethod("GetTelegramMessage", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                string Message() => (string)telegramMessage.Invoke(window, new object[] { false })!;
-                string AllMessage() => (string)telegramMessage.Invoke(window, new object[] { true })!;
-                answer.Text = "  First answer line.\nSecond answer line.  ";
-                answer.Select(0, 0);
-                if (Message() != "First answer line.\nSecond answer line.")
-                    throw new Exception("Without a selection the whole answer is sent, trimmed.");
-                answer.Select(answer.Text.IndexOf("Second", StringComparison.Ordinal), "Second answer line.".Length);
-                if (Message() != "Second answer line.")
-                    throw new Exception("A selection inside the answer must be sent on its own.");
-                // All Send ignores the selection that Send Telegram would honour.
-                if (AllMessage() != "First answer line.\nSecond answer line.")
-                    throw new Exception("All Send must send the whole answer despite a selection.");
-                // A stray whitespace drag must not turn into an empty message.
-                answer.Select(answer.Text.IndexOf('\n'), 1);
-                if (Message() != "First answer line.\nSecond answer line.")
-                    throw new Exception("A whitespace-only selection must fall back to the whole answer.");
-                answer.Clear();
-                answer.Select(0, 0);
-                if (Message().Length != 0 || AllMessage().Length != 0)
+                // Send Selection takes what is highlighted on the AI page. With no
+                // page open there is no selection, so both buttons send it all.
+                var telegramMessage = typeof(MainWindow).GetMethod("GetTelegramMessageAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+                async Task<string> Message(bool whole)
+                    => await (Task<string>)telegramMessage.Invoke(window, new object[] { whole })!;
+                answerField.SetValue(window, "  First answer line.\nSecond answer line.  ");
+                if (await Message(false) != "First answer line.\nSecond answer line." ||
+                    await Message(true) != "First answer line.\nSecond answer line.")
+                    throw new Exception("With nothing selected on the page, the whole answer is sent, trimmed.");
+                answerField.SetValue(window, "");
+                if ((await Message(false)).Length != 0 || (await Message(true)).Length != 0)
                     throw new Exception("An empty answer must produce no message from either button.");
                 var telegramButton = (Button)window.FindName("TelegramSendButton");
                 var telegramBar = (Border)window.FindName("TelegramBar");
                 var telegramAllButton = (Button)window.FindName("TelegramSendAllButton");
                 if (telegramButton.Content as string != "Send Selection" || telegramAllButton.Content as string != "All Send")
-                    throw new Exception("Both Telegram buttons need their resting labels.");
-                ClickCollapse(collapseAnswer, answerToggle);
-                if (telegramBar.Visibility != Visibility.Collapsed) throw new Exception("Collapsing 04 must hide its Telegram bar.");
-                ClickCollapse(collapseAnswer, answerToggle);
-                if (telegramBar.Visibility != Visibility.Visible) throw new Exception("Expanding 04 must restore its Telegram bar.");
-                Console.WriteLine("PASS: Telegram send honours the selection, All Send ignores it, and both follow the collapse");
+                    throw new Exception("Both send buttons need their resting labels.");
+                Console.WriteLine("PASS: both send buttons fall back to the whole answer and carry their labels");
 
                 // Auto-send splits a reply that is still being typed, so a slow
                 // answer reaches the reader two sentences at a time.
@@ -349,7 +313,7 @@ internal static class Program
                 var answerVersion = typeof(MainWindow).GetField("answerOutputVersion", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 appSettings.AutoSendFirstChars = 20;
                 appSettings.AutoSendNextChars = 20;
-                answer.Text = "First one. Second one. A trailing fragment";
+                answerField.SetValue(window, "First one. Second one. A trailing fragment");
                 sentCount.SetValue(window, 0);
                 active.SetValue(window, true);
                 // No browser session here, so the first delivery is refused.
@@ -367,14 +331,14 @@ internal static class Program
                 appSettings.AutoSendAnswer = false;
                 sentCount.SetValue(window, 0);
                 messageCount.SetValue(window, 0);
-                answer.Clear();
+                answerField.SetValue(window, "");
                 Console.WriteLine("PASS: a refused chunk stops auto-send and reports it once");
                 // The same pump, with nothing left to flush: it must send nothing
                 // at all. Any send would be refused here and show up as a stop.
                 var autoSendFinal = typeof(MainWindow).GetField("autoSendFinal", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 var autoSendFailed = typeof(MainWindow).GetField("autoSendFailed", BindingFlags.NonPublic | BindingFlags.Instance)!;
                 status.Visibility = Visibility.Collapsed;
-                answer.Text = "First one. Second one.";
+                answerField.SetValue(window, "First one. Second one.");
                 sentCount.SetValue(window, 2);
                 active.SetValue(window, true);
                 autoSendFailed.SetValue(window, false);
@@ -387,7 +351,7 @@ internal static class Program
                 autoSendFinal.SetValue(window, false);
                 active.SetValue(window, false);
                 sentCount.SetValue(window, 0);
-                answer.Clear();
+                answerField.SetValue(window, "");
                 Console.WriteLine("PASS: the end-of-answer flush sends nothing when nothing is left");
             }
             catch (Exception e) { failure = e; }

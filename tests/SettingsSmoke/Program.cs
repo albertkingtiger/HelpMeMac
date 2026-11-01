@@ -38,13 +38,11 @@ try
     aiSettings = AppSettings.Load(preferencePath);
     if (aiSettings.AiProject != "" || aiSettings.AiSession != "")
         throw new Exception("Blank destinations must stay blank.");
-    settings.SaveEditorAppearance(17.5, "#112233", "#44AA66", 16, "#778899", 15, "#DDEEFF", 19, "#ABCDEF");
+    settings.SaveEditorAppearance(17.5, "#112233", "#44AA66", 16, "#778899");
     var appearanceSettings = AppSettings.Load(preferencePath);
     if (appearanceSettings.PcFontSize != 17.5 || appearanceSettings.PcTextColor != "#112233" ||
-        appearanceSettings.PcCaretColor != "#44AA66" || appearanceSettings.AnswerInputFontSize != 15 ||
-        appearanceSettings.TranslationFontSize != 16 || appearanceSettings.TranslationTextColor != "#778899" ||
-        appearanceSettings.AnswerInputTextColor != "#DDEEFF" || appearanceSettings.AnswerFontSize != 19 ||
-        appearanceSettings.AnswerTextColor != "#ABCDEF")
+        appearanceSettings.PcCaretColor != "#44AA66" ||
+        appearanceSettings.TranslationFontSize != 16 || appearanceSettings.TranslationTextColor != "#778899")
         throw new Exception("Editor appearance settings did not round-trip through JSON preferences.");
     settings.SaveSendShortcut("Ctrl+Alt+K");
     if (AppSettings.Load(preferencePath).SendShortcut != "Ctrl+Alt+K")
@@ -95,17 +93,17 @@ try
     Console.WriteLine("PASS: configurable tray restore shortcut preference persistence");
     Console.WriteLine("PASS: theme and Windows caption source persistence");
     settings.SaveStartWithWindows(false);
-    settings.SaveCollapsedSections(translationCollapsed: true, answerCollapsed: false);
+    settings.SaveCollapsedSections(translationCollapsed: true);
     var layout = AppSettings.Load(preferencePath);
-    if (layout.StartWithWindows || !layout.TranslationCollapsed || layout.AnswerCollapsed)
+    if (layout.StartWithWindows || !layout.TranslationCollapsed)
         throw new Exception("Startup and collapsed-section settings did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: Windows startup and collapsed section persistence");
-    settings.SaveCollapsedSections(translationCollapsed: false, answerCollapsed: false,
+    settings.SaveCollapsedSections(translationCollapsed: false,
         aiPanelCollapsed: true, chatPanelCollapsed: false);
     var panels = AppSettings.Load(preferencePath);
     if (!panels.AiPanelCollapsed || panels.ChatPanelCollapsed)
         throw new Exception("Panel 05 and 06 collapse states did not round-trip through JSON preferences.");
-    settings.SaveCollapsedSections(false, false);
+    settings.SaveCollapsedSections(false);
     Console.WriteLine("PASS: browser panel collapse persistence");
 }
 finally

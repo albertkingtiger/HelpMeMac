@@ -27,7 +27,6 @@ public sealed class AppSettings
     public string Theme { get; set; } = "Dark";
     public bool StartWithWindows { get; set; } = true;
     public bool TranslationCollapsed { get; set; }
-    public bool AnswerCollapsed { get; set; }
     public bool AiPanelCollapsed { get; set; }
     public bool ChatPanelCollapsed { get; set; }
     public double WindowWidth { get; set; } = 1060;
@@ -37,10 +36,6 @@ public sealed class AppSettings
     public string PcCaretColor { get; set; } = "#AEAFAD";
     public double TranslationFontSize { get; set; } = 14;
     public string TranslationTextColor { get; set; } = "#CCCCCC";
-    public double AnswerInputFontSize { get; set; } = 14;
-    public string AnswerInputTextColor { get; set; } = "#CCCCCC";
-    public double AnswerFontSize { get; set; } = 14;
-    public string AnswerTextColor { get; set; } = "#CCCCCC";
     public static string Root { get; private set; } = AppContext.BaseDirectory;
     private static string? projectRoot;
     private static string PreferencesPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HelpMe", "settings.json");
@@ -82,7 +77,6 @@ public sealed class AppSettings
                     result.Theme = saved.Theme is "Light" or "Dark" ? saved.Theme : "Dark";
                     result.StartWithWindows = saved.StartWithWindows;
                     result.TranslationCollapsed = saved.TranslationCollapsed;
-                    result.AnswerCollapsed = saved.AnswerCollapsed;
                     result.AiPanelCollapsed = saved.AiPanelCollapsed;
                     result.ChatPanelCollapsed = saved.ChatPanelCollapsed;
                     result.CaptionMethod = saved.CaptionMethod is CaptionMethod.WindowsLiveCaptions ? saved.CaptionMethod : CaptionMethod.Whisper;
@@ -93,10 +87,6 @@ public sealed class AppSettings
                     if (IsColor(saved.PcCaretColor)) result.PcCaretColor = saved.PcCaretColor.ToUpperInvariant();
                     if (IsFontSize(saved.TranslationFontSize)) result.TranslationFontSize = saved.TranslationFontSize;
                     if (IsColor(saved.TranslationTextColor)) result.TranslationTextColor = saved.TranslationTextColor.ToUpperInvariant();
-                    if (IsFontSize(saved.AnswerInputFontSize)) result.AnswerInputFontSize = saved.AnswerInputFontSize;
-                    if (IsColor(saved.AnswerInputTextColor)) result.AnswerInputTextColor = saved.AnswerInputTextColor.ToUpperInvariant();
-                    if (IsFontSize(saved.AnswerFontSize)) result.AnswerFontSize = saved.AnswerFontSize;
-                    if (IsColor(saved.AnswerTextColor)) result.AnswerTextColor = saved.AnswerTextColor.ToUpperInvariant();
                 }
             }
             catch (JsonException) { }
@@ -164,11 +154,10 @@ public sealed class AppSettings
         StartWithWindows = enabled;
         SavePreferences();
     }
-    public void SaveCollapsedSections(bool translationCollapsed, bool answerCollapsed,
+    public void SaveCollapsedSections(bool translationCollapsed,
         bool aiPanelCollapsed = false, bool chatPanelCollapsed = false)
     {
         TranslationCollapsed = translationCollapsed;
-        AnswerCollapsed = answerCollapsed;
         AiPanelCollapsed = aiPanelCollapsed;
         ChatPanelCollapsed = chatPanelCollapsed;
         SavePreferences();
@@ -180,30 +169,25 @@ public sealed class AppSettings
         SavePreferences();
     }
     public void SaveEditorAppearance(double pcFontSize, string pcTextColor, string pcCaretColor,
-        double translationFontSize, string translationTextColor,
-        double answerInputFontSize, string answerInputTextColor, double answerFontSize, string answerTextColor)
+        double translationFontSize, string translationTextColor)
     {
-        if (!IsFontSize(pcFontSize) || !IsFontSize(translationFontSize) || !IsFontSize(answerInputFontSize) || !IsFontSize(answerFontSize))
+        if (!IsFontSize(pcFontSize) || !IsFontSize(translationFontSize))
             throw new ArgumentOutOfRangeException(nameof(pcFontSize), "Font sizes must be between 8 and 48.");
-        foreach (var color in new[] { pcTextColor, pcCaretColor, translationTextColor, answerInputTextColor, answerTextColor })
+        foreach (var color in new[] { pcTextColor, pcCaretColor, translationTextColor })
             if (!IsColor(color)) throw new ArgumentException("Colors must use #RRGGBB format.", nameof(pcTextColor));
         PcFontSize = pcFontSize;
         PcTextColor = pcTextColor.ToUpperInvariant();
         PcCaretColor = pcCaretColor.ToUpperInvariant();
         TranslationFontSize = translationFontSize;
         TranslationTextColor = translationTextColor.ToUpperInvariant();
-        AnswerInputFontSize = answerInputFontSize;
-        AnswerInputTextColor = answerInputTextColor.ToUpperInvariant();
-        AnswerFontSize = answerFontSize;
-        AnswerTextColor = answerTextColor.ToUpperInvariant();
         SavePreferences();
     }
     private void SavePreferences()
     {
         var json = JsonSerializer.Serialize(new Preferences(AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
-            AnswerInputFontSize, AnswerInputTextColor, AnswerFontSize, AnswerTextColor, SendShortcut, Theme, CaptionMethod, RestoreShortcut,
-            StartWithWindows, TranslationCollapsed, AnswerCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
+            SendShortcut, Theme, CaptionMethod, RestoreShortcut,
+            StartWithWindows, TranslationCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
             AutoSendAnswer, AutoSendFirstChars, AutoSendNextChars, AiPanelCollapsed, ChatPanelCollapsed),
             new JsonSerializerOptions { WriteIndented = true });
         try
@@ -230,11 +214,9 @@ public sealed class AppSettings
         double WindowWidth = 1060, double WindowHeight = 860,
         double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
         double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
-        double AnswerInputFontSize = 14, string AnswerInputTextColor = "#CCCCCC",
-        double AnswerFontSize = 14, string AnswerTextColor = "#CCCCCC",
         string SendShortcut = "Ctrl+Shift+Z", string Theme = "Dark", CaptionMethod CaptionMethod = CaptionMethod.Whisper,
         string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
-        bool TranslationCollapsed = false, bool AnswerCollapsed = false,
+        bool TranslationCollapsed = false,
         string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram",
         bool AutoSendAnswer = false, int AutoSendFirstChars = 100, int AutoSendNextChars = 500,
         bool AiPanelCollapsed = false, bool ChatPanelCollapsed = false);

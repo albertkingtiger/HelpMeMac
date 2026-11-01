@@ -62,6 +62,26 @@ public sealed class WebViewBrowserSession : IAsyncDisposable
         GoTo(chat, Messenger.Find(messenger)?.Url ?? Messenger.Telegram.Url);
     }
 
+    // What the user highlighted on the AI page. That is the answer as the page
+    // rendered it, which is what they were reading when they chose it, rather
+    // than the text this app scraped out of the page.
+    public async Task<string> GetAiSelectionAsync()
+    {
+        if (!ready) return "";
+        try
+        {
+            var json = await ai.CoreWebView2.ExecuteScriptAsync(
+                "(() => { const s = window.getSelection(); return s ? s.toString() : ''; })()");
+            return JsonSerializer.Deserialize<string>(json) ?? "";
+        }
+        catch (Exception error) when (error is COMException or InvalidOperationException or JsonException)
+        {
+            // A page that cannot be asked has nothing selected as far as the
+            // caller is concerned, and the whole answer goes instead.
+            return "";
+        }
+    }
+
     public void Reload(bool aiPanel)
     {
         if (!ready) return;

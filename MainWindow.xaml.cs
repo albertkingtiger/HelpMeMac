@@ -66,6 +66,7 @@ public partial class MainWindow : Window
     private bool hasSavedCaptionLocation;
     private CancellationTokenSource? answerCancellation;
     private int answerOutputVersion;
+    private string answerText = "";
     private KeyGesture sendShortcut = new(Key.Z, ModifierKeys.Control | ModifierKeys.Shift);
     private KeyGesture telegramShortcut = new(Key.T, ModifierKeys.Control | ModifierKeys.Shift);
     private KeyGesture telegramAllShortcut = new(Key.A, ModifierKeys.Control | ModifierKeys.Shift);
@@ -89,10 +90,7 @@ public partial class MainWindow : Window
     // user had dragged the splitters to.
     private GridLength translationRowHeight = new(1, GridUnitType.Star);
     private GridLength answerColumnWidth = new(1, GridUnitType.Star);
-    private GridLength promptRowHeight = new(100);
     private GridLength browserColumnWidth = new(1.3, GridUnitType.Star);
-    private GridLength aiPanelRowHeight = new(1, GridUnitType.Star);
-    private GridLength answerPanelRowHeight = new(1, GridUnitType.Star);
     private HwndSource? hotkeySource;
     private bool restoreHotkeyRegistered;
     private const int RestoreHotkeyId = 0x484D;
@@ -136,9 +134,7 @@ public partial class MainWindow : Window
             ApplySendShortcut();
             UpdateAutoSendHint();
             TranslationCollapseToggle.IsChecked = settings.TranslationCollapsed;
-            AnswerCollapseToggle.IsChecked = settings.AnswerCollapsed;
             ApplyTranslationCollapsed();
-            ApplyAnswerCollapsed();
             AiPanelCollapseToggle.IsChecked = settings.AiPanelCollapsed;
             ChatPanelCollapseToggle.IsChecked = settings.ChatPanelCollapsed;
             ApplyBrowserPanels();
@@ -474,16 +470,10 @@ public partial class MainWindow : Window
         SaveCollapsedSections();
     }
 
-    private void AnswerCollapse_Click(object sender, RoutedEventArgs e)
-    {
-        ApplyAnswerCollapsed();
-        SaveCollapsedSections();
-    }
-
     private void SaveCollapsedSections()
     {
         if (initialized)
-            settings.SaveCollapsedSections(TranslationCollapseToggle.IsChecked == true, AnswerCollapseToggle.IsChecked == true,
+            settings.SaveCollapsedSections(TranslationCollapseToggle.IsChecked == true,
                 AiPanelCollapseToggle.IsChecked == true, ChatPanelCollapseToggle.IsChecked == true);
     }
 
@@ -522,22 +512,28 @@ public partial class MainWindow : Window
         ChatPanelTitle.Text = $"06  {settings.MessengerTarget.ToUpperInvariant()}";
     }
 
-    // Panel 05 sits under the answer, so collapsing it gives its height back to
-    // panel 04 and leaves only its header behind.
+    // Collapsing the AI page leaves its header as the way back.
     private void ApplyAiPanelCollapsed()
     {
         var collapsed = AiPanelCollapseToggle.IsChecked == true;
+        AiWebView.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        TelegramBar.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        AiHeaderActions.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        // The AI page is the only thing in the middle column, so collapsing it
+        // hands the whole width to the captions and the chat.
         if (collapsed)
         {
-            if (AiPanelRow.Height.IsStar) aiPanelRowHeight = AiPanelRow.Height;
-            AiPanelRow.Height = GridLength.Auto;
+            if (AnswerColumn.Width.IsStar) answerColumnWidth = AnswerColumn.Width;
+            AnswerColumn.Width = GridLength.Auto;
+            AnswerSplitterColumn.Width = new GridLength(0);
+            AnswerSplitter.Visibility = Visibility.Collapsed;
         }
-        else AiPanelRow.Height = aiPanelRowHeight;
-        AiPanelSplitterRow.Height = new GridLength(collapsed ? 0 : 5);
-        AiPanelSplitter.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-        AiWebView.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-        AiPanelReloadButton.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-        ApplyAnswerColumnWidth();
+        else
+        {
+            AnswerColumn.Width = answerColumnWidth;
+            AnswerSplitterColumn.Width = new GridLength(5);
+            AnswerSplitter.Visibility = Visibility.Visible;
+        }
     }
 
     // Panel 06 owns the right column, so collapsing it gives the width back.
@@ -572,57 +568,6 @@ public partial class MainWindow : Window
         }
         TranslationSplitter.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         TranslationText.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void ApplyAnswerCollapsed()
-    {
-        var collapsed = AnswerCollapseToggle.IsChecked == true;
-        if (collapsed)
-        {
-            if (AnswerPanelRow.Height.IsStar) answerPanelRowHeight = AnswerPanelRow.Height;
-            if (PromptRow.Height.Value > 0) promptRowHeight = PromptRow.Height;
-            // Only this panel's own row goes: panel 05 shares the column and
-            // takes the height back, so the column itself must stay as it is.
-            AnswerPanelRow.Height = GridLength.Auto;
-            PromptRow.Height = new GridLength(0);
-            PromptSplitterRow.Height = new GridLength(0);
-            AnswerRow.Height = GridLength.Auto;
-        }
-        else
-        {
-            AnswerPanelRow.Height = answerPanelRowHeight;
-            PromptRow.Height = promptRowHeight;
-            PromptSplitterRow.Height = new GridLength(8);
-            AnswerRow.Height = new GridLength(1, GridUnitType.Star);
-        }
-        var visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
-        // Hiding the header actions narrows the leftover strip to the title and
-        // this toggle. Ctrl+Shift+Z still sends while the section is collapsed.
-        AnswerHeaderActions.Visibility = visibility;
-        TranslationInputText.Visibility = visibility;
-        PromptSplitter.Visibility = visibility;
-        AnswerText.Visibility = visibility;
-        TelegramBar.Visibility = visibility;
-        ApplyAnswerColumnWidth();
-    }
-
-    // The middle column carries panel 04 and panel 05. Its width is only given
-    // back to the rest of the window once neither of them has anything to show.
-    private void ApplyAnswerColumnWidth()
-    {
-        var aiShowing = AiPanelCollapseToggle.IsChecked != true;
-        var answerShowing = AnswerCollapseToggle.IsChecked != true;
-        if (answerShowing || aiShowing)
-        {
-            AnswerColumn.Width = answerColumnWidth;
-            AnswerSplitterColumn.Width = new GridLength(5);
-            AnswerSplitter.Visibility = Visibility.Visible;
-            return;
-        }
-        if (AnswerColumn.Width.IsStar) answerColumnWidth = AnswerColumn.Width;
-        AnswerColumn.Width = GridLength.Auto;
-        AnswerSplitterColumn.Width = new GridLength(0);
-        AnswerSplitter.Visibility = Visibility.Collapsed;
     }
 
     // Background start. The window is deliberately never shown: calling Hide()
@@ -754,10 +699,6 @@ public partial class MainWindow : Window
         PcText.CaretBrush = EditorBrush(settings.PcCaretColor);
         TranslationText.FontSize = settings.TranslationFontSize;
         TranslationText.Foreground = EditorBrush(settings.TranslationTextColor);
-        TranslationInputText.FontSize = settings.AnswerInputFontSize;
-        TranslationInputText.Foreground = EditorBrush(settings.AnswerInputTextColor);
-        AnswerText.FontSize = settings.AnswerFontSize;
-        AnswerText.Foreground = EditorBrush(settings.AnswerTextColor);
     }
 
     private System.Windows.Media.Brush EditorBrush(string color)
@@ -884,24 +825,24 @@ public partial class MainWindow : Window
     private async void TelegramSendAll_Click(object sender, RoutedEventArgs e)
         => await SendAnswerToTelegramAsync(TelegramSendAllButton, AllLabel, wholeAnswer: true);
 
-    // A selection inside the answer wins over the whole text, unless the caller
+    // A selection on the AI page wins over the whole answer, unless the caller
     // asked for everything. Whitespace-only selections fall back to the whole
     // answer rather than refusing to send.
-    private string GetTelegramMessage(bool wholeAnswer)
+    private async Task<string> GetTelegramMessageAsync(bool wholeAnswer)
     {
-        if (wholeAnswer) return AnswerText.Text.Trim();
-        var selected = AnswerText.SelectionLength > 0 ? AnswerText.SelectedText.Trim() : "";
-        return selected.Length > 0 ? selected : AnswerText.Text.Trim();
+        if (wholeAnswer) return answerText.Trim();
+        var selected = webViews is null ? "" : (await webViews.GetAiSelectionAsync()).Trim();
+        return selected.Length > 0 ? selected : answerText.Trim();
     }
 
     // The answer goes to Telegram as its own new message.
     private async Task SendAnswerToTelegramAsync(Button button, string restingLabel, bool wholeAnswer)
     {
         if (closing || telegramSending) return;
-        var message = GetTelegramMessage(wholeAnswer);
+        var message = await GetTelegramMessageAsync(wholeAnswer);
         if (message.Length == 0)
         {
-            ShowError("There is no AI answer to send. Select text in panel 04, or send a prompt first.");
+            ShowError("There is no AI answer to send. Select text on the AI page, or send a prompt first.");
             return;
         }
         telegramSending = true;
@@ -973,8 +914,8 @@ public partial class MainWindow : Window
                 // the answer is still being written; the rest come in larger.
                 var target = autoSendMessages == 0 ? settings.AutoSendFirstChars : settings.AutoSendNextChars;
                 var chunk = autoSendFinal
-                    ? AnswerChunker.RemainingChunk(AnswerText.Text, sentences, out sentences)
-                    : AnswerChunker.NextChunk(AnswerText.Text, sentences, target, out sentences);
+                    ? AnswerChunker.RemainingChunk(answerText, sentences, out sentences)
+                    : AnswerChunker.NextChunk(answerText, sentences, target, out sentences);
                 if (chunk is null) return;
                 if (autoSendMessages == 0) chunk = AutoSendSeparator + "\n" + chunk;
                 autoSendSentences = sentences;
@@ -1005,7 +946,7 @@ public partial class MainWindow : Window
         finally { autoSendPumping = false; }
     }
 
-    // Auto-send is switched on the panel 04 bar, beside the buttons it feeds,
+    // Auto-send is switched on the panel 05 bar, beside the buttons it feeds,
     // because it is turned on and off for one answer at a time.
     private void AutoSend_Changed(object sender, RoutedEventArgs e)
     {
@@ -1020,7 +961,7 @@ public partial class MainWindow : Window
         {
             // Switched on while an answer is arriving: start from what comes
             // next, so the part already on screen is not sent a second time.
-            autoSendSentences = AnswerChunker.SentenceCount(AnswerText.Text);
+            autoSendSentences = AnswerChunker.SentenceCount(answerText);
             autoSendActive = true;
             autoSendFailed = false;
             // Its first message still opens with the separator and the small
@@ -1056,19 +997,17 @@ public partial class MainWindow : Window
         if (!closing && token == telegramConfirmation) button.Content = restingLabel;
     }
 
-    // Ctrl+2 and Ctrl+4 hide or show sections 02 and 04.
+    // Ctrl+2, Ctrl+5 and Ctrl+6 hide or show their sections.
     private bool TryToggleSection(Key key, ModifierKeys modifiers)
     {
         if (modifiers != ModifierKeys.Control) return false;
         ToggleButton section;
         if (key is Key.D2 or Key.NumPad2) section = TranslationCollapseToggle;
-        else if (key is Key.D4 or Key.NumPad4) section = AnswerCollapseToggle;
         else if (key is Key.D5 or Key.NumPad5) section = AiPanelCollapseToggle;
         else if (key is Key.D6 or Key.NumPad6) section = ChatPanelCollapseToggle;
         else return false;
         section.IsChecked = section.IsChecked != true;
         if (section == TranslationCollapseToggle) ApplyTranslationCollapsed();
-        else if (section == AnswerCollapseToggle) ApplyAnswerCollapsed();
         else if (section == AiPanelCollapseToggle) ApplyAiPanelCollapsed();
         else ApplyChatPanelCollapsed();
         SaveCollapsedSections();
@@ -1118,20 +1057,6 @@ public partial class MainWindow : Window
             $"Send the whole AI answer to {settings.MessengerTarget}, ignoring any selection ({allLabel})";
     }
 
-    private void AnswerFormat_Click(object sender, RoutedEventArgs e)
-    {
-        answerOutputVersion++;
-        answerCancellation?.Cancel();
-        TranslationInputText.Clear();
-        AnswerText.Clear();
-        // The cleared answer has nothing left to auto-send, so the bar must not
-        // keep reporting what the last one delivered.
-        autoSendActive = false;
-        autoSendFailed = false;
-        autoSendSentences = 0;
-        autoSendMessages = 0;
-        UpdateAutoSendHint();
-    }
     private async void AnswerSend_Click(object sender, RoutedEventArgs e) => await SendAnswerAsync();
     private void MoveCaptionCaretToEnd()
     {
@@ -1158,7 +1083,6 @@ public partial class MainWindow : Window
         try { prompt = GetAnswerPrompt(); }
         catch (InvalidOperationException error) { ShowError(error.Message); return; }
         MoveCaptionCaretToEnd();
-        TranslationInputText.Text = prompt;
         using var cancellation = new CancellationTokenSource();
         answerCancellation = cancellation;
         AnswerSendButton.IsEnabled = false;
@@ -1193,7 +1117,7 @@ public partial class MainWindow : Window
     private void DisplayAnswer(string text, int outputVersion) => UI(() =>
     {
         if (closing || outputVersion != answerOutputVersion) return;
-        UpdateTextPreservingView(AnswerText, () => AnswerText.Text = text);
+        answerText = text;
         if (autoSendActive) _ = PumpAutoSendAsync(outputVersion);
     });
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1208,7 +1132,8 @@ public partial class MainWindow : Window
         {
             "Translation" => (TranslationText, "translation.txt"),
             "Microphone" => (MicText, "microphone.txt"),
-            "Answer" => (AnswerText, "answer.txt"),
+            // The answer has no box of its own; it is saved from what was read.
+            "Answer" => (null, "answer.txt"),
             _ => (PcText, "captions.txt")
         };
         var dialog = new SaveFileDialog
@@ -1217,7 +1142,7 @@ public partial class MainWindow : Window
             DefaultExt = ".txt", AddExtension = true, FileName = filename
         };
         if (dialog.ShowDialog(this) != true) return;
-        var text = box.Text;
+        var text = box?.Text ?? answerText;
         button.IsEnabled = false;
         try { await File.WriteAllTextAsync(dialog.FileName, text, new UTF8Encoding(false)); }
         catch (Exception error) { if (!closing) ShowError(error.Message); }
@@ -1285,7 +1210,7 @@ public partial class MainWindow : Window
             settings.SaveTelegramShortcut(dialog.TelegramShortcut);
             settings.SaveTelegramAllShortcut(dialog.TelegramAllShortcut);
             settings.SaveMessengerTarget(dialog.MessengerTarget);
-            // The toggle lives on the panel 04 bar; Settings only sets the size.
+            // The toggle lives on the panel 05 bar; Settings only sets the sizes.
             settings.SaveAutoSend(settings.AutoSendAnswer, dialog.AutoSendFirstChars, dialog.AutoSendNextChars);
             if (dialog.StartWithWindows != settings.StartWithWindows)
             {
@@ -1311,9 +1236,7 @@ public partial class MainWindow : Window
             settings.SaveCaptionMethod(dialog.SelectedMethod);
             AppTheme.Apply(settings.Theme);
             settings.SaveEditorAppearance(dialog.PcFontSize, dialog.PcTextColor, dialog.PcCaretColor,
-                dialog.TranslationFontSize, dialog.TranslationTextColor,
-                dialog.AnswerInputFontSize, dialog.AnswerInputTextColor,
-                dialog.AnswerFontSize, dialog.AnswerTextColor);
+                dialog.TranslationFontSize, dialog.TranslationTextColor);
             ApplyEditorAppearance();
             ApplySendShortcut();
             UpdateAutoSendHint();

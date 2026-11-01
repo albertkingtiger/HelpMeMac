@@ -39,13 +39,9 @@ public partial class SettingsWindow : Window
         AutoSendNextCharsText.Text = settings.AutoSendNextChars.ToString(CultureInfo.CurrentCulture);
         PcFontSizeText.Text = settings.PcFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         TranslationFontSizeText.Text = settings.TranslationFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        AnswerInputFontSizeText.Text = settings.AnswerInputFontSize.ToString("0.#", CultureInfo.CurrentCulture);
-        AnswerFontSizeText.Text = settings.AnswerFontSize.ToString("0.#", CultureInfo.CurrentCulture);
         SetColorButton(PcTextColorButton, settings.PcTextColor);
         SetColorButton(PcCaretColorButton, settings.PcCaretColor);
         SetColorButton(TranslationTextColorButton, settings.TranslationTextColor);
-        SetColorButton(AnswerInputTextColorButton, settings.AnswerInputTextColor);
-        SetColorButton(AnswerTextColorButton, settings.AnswerTextColor);
     }
     public CaptionMethod SelectedMethod => WindowsCaptionsOption.IsChecked == true ? CaptionMethod.WindowsLiveCaptions : CaptionMethod.Whisper;
     public string AiProvider => ProviderCombo.SelectedItem as string ?? "ChatGPT";
@@ -69,10 +65,6 @@ public partial class SettingsWindow : Window
     public string PcCaretColor => PcCaretColorButton.Content?.ToString() ?? "#AEAFAD";
     public double TranslationFontSize => ReadFontSize(TranslationFontSizeText);
     public string TranslationTextColor => TranslationTextColorButton.Content?.ToString() ?? "#CCCCCC";
-    public double AnswerInputFontSize => ReadFontSize(AnswerInputFontSizeText);
-    public string AnswerInputTextColor => AnswerInputTextColorButton.Content?.ToString() ?? "#CCCCCC";
-    public double AnswerFontSize => ReadFontSize(AnswerFontSizeText);
-    public string AnswerTextColor => AnswerTextColorButton.Content?.ToString() ?? "#CCCCCC";
     private void Title_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (e.ButtonState == System.Windows.Input.MouseButtonState.Pressed) DragMove();
@@ -149,7 +141,7 @@ public partial class SettingsWindow : Window
     }
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (new[] { PcFontSize, TranslationFontSize, AnswerInputFontSize, AnswerFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
+        if (new[] { PcFontSize, TranslationFontSize }.Any(value => value is < 8 or > 48 || double.IsNaN(value)))
         {
             System.Windows.MessageBox.Show(this, "Enter font sizes from 8 to 48.", "Settings",
                 MessageBoxButton.OK, MessageBoxImage.Information);
