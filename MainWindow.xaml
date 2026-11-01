@@ -102,70 +102,68 @@
                   Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                   ShowsPreview="False" ToolTip="Drag to resize the caption and answer panels"/>
 
-    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Margin="0,8,0,0">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition x:Name="PromptRow" Height="100"/>
-          <RowDefinition x:Name="PromptSplitterRow" Height="8"/>
-          <RowDefinition x:Name="AnswerRow" Height="*"/>
-          <RowDefinition x:Name="TelegramRow" Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Border Style="{StaticResource SectionHeader}">
-          <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
-              <TextBlock Text="04  ANSWER" FontSize="11" VerticalAlignment="Center"/>
-            </Border>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-              <StackPanel x:Name="AnswerHeaderActions" Orientation="Horizontal">
-                <Button Content="Format" Click="AnswerFormat_Click" ToolTip="Clear the prompt and answer"/>
-                <Button Content="Save" Click="Save_Click" Tag="Answer" ToolTip="Save the answer as a text file"/>
-                <Button x:Name="AnswerSendButton" Content="Send" Style="{StaticResource PrimaryButton}" Click="AnswerSend_Click" Margin="4,0,0,0" ToolTip="Send captions"/>
-              </StackPanel>
-              <ToggleButton x:Name="AnswerCollapseToggle" Style="{StaticResource SectionToggle}" Click="AnswerCollapse_Click"
-                            Margin="4,0,0,0" ToolTip="Hide or show the answer section (Ctrl+4)"
-                            AutomationProperties.Name="Hide or show the answer section"/>
-            </StackPanel>
-          </Grid>
-        </Border>
-        <TextBox Grid.Row="1" x:Name="TranslationInputText" AutomationProperties.Name="Answer input"/>
-        <GridSplitter x:Name="PromptSplitter" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                      Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
-                      ShowsPreview="False" ToolTip="Drag to resize the prompt and answer"/>
-        <TextBox Grid.Row="3" x:Name="AnswerText" AutomationProperties.Name="AI answer" IsReadOnly="True"/>
-        <Border Grid.Row="4" x:Name="TelegramBar" Background="{DynamicResource Surface}"
-                BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="6,5">
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <CheckBox x:Name="AutoSendCheck" Content="Auto-send" VerticalAlignment="Center" Margin="0,0,10,0"
-                      Checked="AutoSend_Changed" Unchecked="AutoSend_Changed"
-                      ToolTip="Send the answer as it is written, a few sentences at a time"
-                      AutomationProperties.Name="Auto-send the answer while it is still generating"/>
-            <TextBlock x:Name="AutoSendHint" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"
-                       Foreground="{DynamicResource Muted}" Visibility="Collapsed"/>
-            <Button x:Name="TelegramSendAllButton" Content="All Send" Click="TelegramSendAll_Click"
-                    MinWidth="90" Margin="0,0,8,0"
-                    ToolTip="Send the whole AI answer to Telegram, ignoring any selection"
-                    AutomationProperties.Name="Send the whole AI answer to Telegram"/>
-            <Button x:Name="TelegramSendButton" Content="Send Selection" Click="TelegramSend_Click"
-                    MinWidth="120"
-                    AutomationProperties.Name="Send the selected part of the AI answer to Telegram"/>
-          </StackPanel>
-        </Border>
-      </Grid>
-    </Border>
-
-    <GridSplitter x:Name="BrowserSplitter" Grid.Row="1" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                  Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
-                  ShowsPreview="False" ToolTip="Drag to resize the answer and browser panels"/>
-
-    <Grid Grid.Row="1" Grid.Column="4" x:Name="BrowserPanels" Margin="0,8,8,0">
+    <Grid Grid.Row="1" Grid.Column="2" Margin="0,8,0,0">
       <Grid.RowDefinitions>
+        <RowDefinition x:Name="AnswerPanelRow" Height="*"/>
+        <RowDefinition x:Name="AiPanelSplitterRow" Height="5"/>
         <RowDefinition x:Name="AiPanelRow" Height="*"/>
-        <RowDefinition x:Name="BrowserSplitterRow" Height="5"/>
-        <RowDefinition x:Name="ChatPanelRow" Height="*"/>
       </Grid.RowDefinitions>
       <Border Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition x:Name="PromptRow" Height="100"/>
+            <RowDefinition x:Name="PromptSplitterRow" Height="8"/>
+            <RowDefinition x:Name="AnswerRow" Height="*"/>
+            <RowDefinition x:Name="TelegramRow" Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource SectionHeader}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border BorderBrush="{DynamicResource Accent}" BorderThickness="0,2,0,0" HorizontalAlignment="Left" Padding="0,0,10,0">
+                <TextBlock Text="04  ANSWER" FontSize="11" VerticalAlignment="Center"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="AnswerHeaderActions" Orientation="Horizontal">
+                  <Button Content="Format" Click="AnswerFormat_Click" ToolTip="Clear the prompt and answer"/>
+                  <Button Content="Save" Click="Save_Click" Tag="Answer" ToolTip="Save the answer as a text file"/>
+                  <Button x:Name="AnswerSendButton" Content="Send" Style="{StaticResource PrimaryButton}" Click="AnswerSend_Click" Margin="4,0,0,0" ToolTip="Send captions"/>
+                </StackPanel>
+                <ToggleButton x:Name="AnswerCollapseToggle" Style="{StaticResource SectionToggle}" Click="AnswerCollapse_Click"
+                              Margin="4,0,0,0" ToolTip="Hide or show the answer section (Ctrl+4)"
+                              AutomationProperties.Name="Hide or show the answer section"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <TextBox Grid.Row="1" x:Name="TranslationInputText" AutomationProperties.Name="Answer input"/>
+          <GridSplitter x:Name="PromptSplitter" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                        Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                        ShowsPreview="False" ToolTip="Drag to resize the prompt and answer"/>
+          <TextBox Grid.Row="3" x:Name="AnswerText" AutomationProperties.Name="AI answer" IsReadOnly="True"/>
+          <Border Grid.Row="4" x:Name="TelegramBar" Background="{DynamicResource Surface}"
+                  BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="6,5">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+              <CheckBox x:Name="AutoSendCheck" Content="Auto-send" VerticalAlignment="Center" Margin="0,0,10,0"
+                        Checked="AutoSend_Changed" Unchecked="AutoSend_Changed"
+                        ToolTip="Send the answer as it is written, a few sentences at a time"
+                        AutomationProperties.Name="Auto-send the answer while it is still generating"/>
+              <TextBlock x:Name="AutoSendHint" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"
+                         Foreground="{DynamicResource Muted}" Visibility="Collapsed"/>
+              <Button x:Name="TelegramSendAllButton" Content="All Send" Click="TelegramSendAll_Click"
+                      MinWidth="90" Margin="0,0,8,0"
+                      ToolTip="Send the whole AI answer to Telegram, ignoring any selection"
+                      AutomationProperties.Name="Send the whole AI answer to Telegram"/>
+              <Button x:Name="TelegramSendButton" Content="Send Selection" Click="TelegramSend_Click"
+                      MinWidth="120"
+                      AutomationProperties.Name="Send the selected part of the AI answer to Telegram"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+      <GridSplitter x:Name="AiPanelSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                    ShowsPreview="False" ToolTip="Drag to resize the answer and the AI page"/>
+      <Border Grid.Row="2" x:Name="AiPanel" Style="{StaticResource Panel}">
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
           <Border Style="{StaticResource SectionHeader}">
@@ -186,10 +184,14 @@
           <wv2:WebView2 Grid.Row="1" x:Name="AiWebView" AutomationProperties.Name="AI web page"/>
         </Grid>
       </Border>
-      <GridSplitter x:Name="BrowserRowSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                    Background="{DynamicResource WindowBackground}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
-                    ShowsPreview="False" ToolTip="Drag to resize the AI and chat panels"/>
-      <Border Grid.Row="2" Style="{StaticResource Panel}">
+    </Grid>
+
+    <GridSplitter x:Name="BrowserSplitter" Grid.Row="1" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  Background="{DynamicResource Divider}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                  ShowsPreview="False" ToolTip="Drag to resize the answer and browser panels"/>
+
+    <Grid Grid.Row="1" Grid.Column="4" x:Name="BrowserPanels" Margin="0,8,8,0">
+      <Border Style="{StaticResource Panel}">
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
           <Border Style="{StaticResource SectionHeader}">

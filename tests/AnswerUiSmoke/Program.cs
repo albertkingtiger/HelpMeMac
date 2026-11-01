@@ -161,12 +161,13 @@ internal static class Program
                 var chatTitle = (TextBlock)window.FindName("ChatPanelTitle");
                 var savedEngine = engineSettings.BrowserEngine;
                 engineSettings.BrowserEngine = BrowserEngine.WebView2;
-                engineSettings.AiProvider = "Claude";
-                engineSettings.MessengerTarget = "WhatsApp";
                 applyEngine.Invoke(window, null);
                 if (browserPanels.Visibility != Visibility.Visible || !browserColumn.Width.IsStar)
                     throw new Exception("The built-in engine must show the browser column.");
-                if (aiTitle.Text != "05  CLAUDE" || chatTitle.Text != "06  WHATSAPP")
+                // Read the settings rather than set them: a collapse below saves
+                // preferences, which would write a test value to the real file.
+                if (aiTitle.Text != $"05  {engineSettings.AiProvider.ToUpperInvariant()}" ||
+                    chatTitle.Text != $"06  {engineSettings.MessengerTarget.ToUpperInvariant()}")
                     throw new Exception("Panel titles must name the provider and destination in use.");
                 if (!Press(Key.D5, ModifierKeys.Control) || aiPanelToggle.IsChecked != true ||
                     aiWebView.Visibility != Visibility.Collapsed || aiPanelRow.Height.IsStar)

@@ -90,7 +90,6 @@ public partial class MainWindow : Window
     private GridLength promptRowHeight = new(100);
     private GridLength browserColumnWidth = new(1.3, GridUnitType.Star);
     private GridLength aiPanelRowHeight = new(1, GridUnitType.Star);
-    private GridLength chatPanelRowHeight = new(1, GridUnitType.Star);
     private HwndSource? hotkeySource;
     private bool restoreHotkeyRegistered;
     private const int RestoreHotkeyId = 0x484D;
@@ -530,13 +529,13 @@ public partial class MainWindow : Window
 
     private void AiPanelCollapse_Click(object sender, RoutedEventArgs e)
     {
-        ApplyBrowserPanelsCollapsed();
+        ApplyAiPanelCollapsed();
         SaveCollapsedSections();
     }
 
     private void ChatPanelCollapse_Click(object sender, RoutedEventArgs e)
     {
-        ApplyBrowserPanelsCollapsed();
+        ApplyChatPanelCollapsed();
         SaveCollapsedSections();
     }
 
@@ -550,11 +549,13 @@ public partial class MainWindow : Window
         var panels = settings.BrowserEngine == BrowserEngine.WebView2;
         BrowserPanels.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
         BrowserSplitter.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
+        AiPanel.Visibility = panels ? Visibility.Visible : Visibility.Collapsed;
         if (panels)
         {
             BrowserColumn.Width = browserColumnWidth;
             BrowserSplitterColumn.Width = new GridLength(5);
-            ApplyBrowserPanelsCollapsed();
+            ApplyAiPanelCollapsed();
+            ApplyChatPanelCollapsed();
             // Three columns need the room; a window left at the two-column width
             // would squeeze the web pages into a strip.
             if (Width < 1300) Width = 1300;
@@ -562,34 +563,47 @@ public partial class MainWindow : Window
         else
         {
             if (BrowserColumn.Width.IsStar) browserColumnWidth = BrowserColumn.Width;
+            if (AiPanelRow.Height.IsStar) aiPanelRowHeight = AiPanelRow.Height;
             BrowserColumn.Width = new GridLength(0);
             BrowserSplitterColumn.Width = new GridLength(0);
+            // Panel 05 shares the middle column with 04, so its row has to go
+            // back as well or the answer keeps only half the height.
+            AiPanelRow.Height = new GridLength(0);
+            AiPanelSplitterRow.Height = new GridLength(0);
+            AiPanelSplitter.Visibility = Visibility.Collapsed;
         }
         AiPanelTitle.Text = $"05  {settings.AiProvider.ToUpperInvariant()}";
         ChatPanelTitle.Text = $"06  {settings.MessengerTarget.ToUpperInvariant()}";
     }
 
-    private void ApplyBrowserPanelsCollapsed()
+    // Panel 05 sits under the answer, so collapsing it gives its height back to
+    // panel 04 and leaves only its header behind.
+    private void ApplyAiPanelCollapsed()
     {
-        var aiCollapsed = AiPanelCollapseToggle.IsChecked == true;
-        var chatCollapsed = ChatPanelCollapseToggle.IsChecked == true;
-        if (aiCollapsed)
+        var collapsed = AiPanelCollapseToggle.IsChecked == true;
+        if (collapsed)
         {
             if (AiPanelRow.Height.IsStar) aiPanelRowHeight = AiPanelRow.Height;
             AiPanelRow.Height = GridLength.Auto;
         }
         else AiPanelRow.Height = aiPanelRowHeight;
-        if (chatCollapsed)
+        AiPanelSplitterRow.Height = new GridLength(collapsed ? 0 : 5);
+        AiPanelSplitter.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        AiWebView.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Panel 06 owns the right column, so collapsing it gives the width back.
+    private void ApplyChatPanelCollapsed()
+    {
+        var collapsed = ChatPanelCollapseToggle.IsChecked == true;
+        if (collapsed)
         {
-            if (ChatPanelRow.Height.IsStar) chatPanelRowHeight = ChatPanelRow.Height;
-            ChatPanelRow.Height = GridLength.Auto;
+            if (BrowserColumn.Width.IsStar) browserColumnWidth = BrowserColumn.Width;
+            BrowserColumn.Width = GridLength.Auto;
         }
-        else ChatPanelRow.Height = chatPanelRowHeight;
-        AiWebView.Visibility = aiCollapsed ? Visibility.Collapsed : Visibility.Visible;
-        ChatWebView.Visibility = chatCollapsed ? Visibility.Collapsed : Visibility.Visible;
-        var both = aiCollapsed || chatCollapsed;
-        BrowserSplitterRow.Height = new GridLength(both ? 0 : 5);
-        BrowserRowSplitter.Visibility = both ? Visibility.Collapsed : Visibility.Visible;
+        else BrowserColumn.Width = browserColumnWidth;
+        ChatWebView.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        ChatPanelReloadButton.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // A collapsed section keeps its header bar so it can be brought back with the
@@ -1081,7 +1095,8 @@ public partial class MainWindow : Window
         section.IsChecked = section.IsChecked != true;
         if (section == TranslationCollapseToggle) ApplyTranslationCollapsed();
         else if (section == AnswerCollapseToggle) ApplyAnswerCollapsed();
-        else ApplyBrowserPanelsCollapsed();
+        else if (section == AiPanelCollapseToggle) ApplyAiPanelCollapsed();
+        else ApplyChatPanelCollapsed();
         SaveCollapsedSections();
         return true;
     }

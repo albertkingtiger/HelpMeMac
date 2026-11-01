@@ -81,7 +81,7 @@ This writes `dist/HelpMe-Setup-<version>.exe` and a SHA-256 checksum. The instal
 
 The AI and chat web clients run in one of two places, chosen under **Browser** in Settings.
 
-**Built-in panels** (the default) host them inside Help Me! itself: panel **05** shows the AI provider and panel **06** shows the chat destination, in a column on the right. They run on the Microsoft Edge WebView2 runtime, which ships with Windows 11, so nothing extra is installed and no second browser window appears. Their profile lives in `%LOCALAPPDATA%\HelpMe\WebView2`, separate from the Chrome one, so each engine is signed in once on its own. **Ctrl+5** and **Ctrl+6** collapse the two panels to their headers; **Reload** in a panel header reloads that page when a site gets stuck.
+**Built-in panels** (the default) host them inside Help Me! itself: panel **05** shows the AI provider, under panel 04 so the page sits beneath the answer it produced, and panel **06** shows the chat destination in its own column on the right. They run on the Microsoft Edge WebView2 runtime, which ships with Windows 11, so nothing extra is installed and no second browser window appears. Their profile lives in `%LOCALAPPDATA%\HelpMe\WebView2`, separate from the Chrome one, so each engine is signed in once on its own. **Ctrl+5** collapses panel 05, giving its height back to the answer, and **Ctrl+6** collapses panel 06, giving its width back to the rest of the window; **Reload** in a panel header reloads that page when a site gets stuck.
 
 Choosing the built-in panels closes the managed Chrome window, including one an earlier run left open on the debugging port. Choosing **Chrome window** goes back to driving Chrome over that port, and the browser column disappears.
 
