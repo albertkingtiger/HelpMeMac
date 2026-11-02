@@ -1126,12 +1126,16 @@ public partial class MainWindow : Window
             });
             Action<string> onStatus = message => WorkerMessage(message, () => generation == pcGeneration);
             await engine.InitializeAsync();
-            var session = new AudioSession(CaptureFactory.CreateSystemAudio(settings),
-                engine, settings, "en", onCaption, onStatus, onPreview);
+            var audio = CaptureFactory.CreateSystemAudio(settings);
+            var session = new AudioSession(audio.Capture, engine, settings, "en", onCaption, onStatus, onPreview);
             try
             {
                 await session.StartAsync();
                 pc = session;
+                // The route asked for is not always the one in use: with no
+                // BlackHole installed the capture falls back, and the status
+                // line is where that becomes visible.
+                CaptionSourceHint.Text = CaptureFactory.Describe(audio.Source, audio.Substituted);
             }
             catch { await session.DisposeAsync(); throw; }
         }
@@ -1139,6 +1143,7 @@ public partial class MainWindow : Window
         {
             ++pcGeneration;
             await pc.DisposeAsync(); pc = null;
+            UpdateCaptionSourceHint();
         }
     }
 

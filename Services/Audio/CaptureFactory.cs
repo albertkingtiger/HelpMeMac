@@ -14,6 +14,11 @@ public static class CaptureFactory
         "create a Multi-Output Device containing your speakers and BlackHole 2ch, and select that as the system " +
         "output. Or choose ScreenCaptureKit as the PC audio source in Settings.";
 
+    // What panel 01 ended up listening to. The source asked for is not always
+    // the one that can be used, and the window says which it is rather than
+    // leaving the difference invisible.
+    public sealed record SystemAudio(IAudioCapture Capture, SystemAudioSource Source, bool Substituted);
+
     public static IAudioCapture CreateMicrophone()
     {
         RequireMac();
@@ -22,30 +27,51 @@ public static class CaptureFactory
         return new AudioQueueCapture(null, "the microphone");
     }
 
-    public static IAudioCapture CreateSystemAudio(AppSettings settings)
+    public static SystemAudio CreateSystemAudio(AppSettings settings)
     {
         RequireMac();
         if (settings.SystemAudioSource == SystemAudioSource.ScreenCaptureKit)
+            return new SystemAudio(CreateScreenCapture(), SystemAudioSource.ScreenCaptureKit, false);
+
+        var device = CoreAudio.FindByName(BlackHoleName);
+        if (device is not null)
+            return new SystemAudio(new AudioQueueCapture(device.Uid, device.Name), SystemAudioSource.BlackHole, false);
+
+        // BlackHole is a separate install with an installer of its own, so a
+        // Mac that has only ever run the Help Me! bundle will not have it.
+        // ScreenCaptureKit needs nothing installed, so rather than refuse to
+        // caption at all, use it and say so on the status line.
+        var fallback = new ScreenCaptureAudio();
+        if (fallback.Unavailable() is not null)
         {
-            var capture = new ScreenCaptureAudio();
-            if (capture.Unavailable() is { } problem)
-            {
-                capture.Dispose();
-                throw new IOException(problem);
-            }
-            return capture;
+            fallback.Dispose();
+            throw new IOException(BlackHoleSetup);
         }
-        var device = CoreAudio.FindByName(BlackHoleName)
-            ?? throw new IOException(BlackHoleSetup);
-        return new AudioQueueCapture(device.Uid, device.Name);
+        return new SystemAudio(fallback, SystemAudioSource.ScreenCaptureKit, true);
     }
 
-    // A description of the current PC audio route for the status line, so the
-    // window says which of the two is in use without opening Settings.
-    public static string Describe(AppSettings settings)
-        => settings.SystemAudioSource == SystemAudioSource.ScreenCaptureKit
+    private static IAudioCapture CreateScreenCapture()
+    {
+        var capture = new ScreenCaptureAudio();
+        if (capture.Unavailable() is { } problem)
+        {
+            capture.Dispose();
+            throw new IOException(problem);
+        }
+        return capture;
+    }
+
+    // The status line names the route actually in use, so a substituted source
+    // is visible without opening Settings.
+    public static string Describe(SystemAudioSource source, bool substituted = false)
+    {
+        if (substituted) return "ScreenCaptureKit (BlackHole not installed)  •  Offline captions";
+        return source == SystemAudioSource.ScreenCaptureKit
             ? "ScreenCaptureKit  •  Offline captions"
             : "BlackHole  •  Offline captions";
+    }
+
+    public static string Describe(AppSettings settings) => Describe(settings.SystemAudioSource);
 
     private static void RequireMac()
     {

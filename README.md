@@ -26,6 +26,8 @@ Then, in **Audio MIDI Setup**: click **+** at the bottom left, choose **Create M
 
 Either way, the app transcribes with Whisper. The microphone panel always uses the default input device.
 
+If BlackHole is selected but not installed — which is the case on a Mac that has only ever run the packaged bundle — Help Me! falls back to ScreenCaptureKit rather than refusing to caption, and the status line says which route is actually in use.
+
 ## Caption text editing and files
 
 The PC AUDIO text area is editable: type, paste, or correct text there. Translation reads this text area, rather than a separate audio-only stream. With Translation started, complete sentences are translated with their context. Growing or corrected sentences are retranslated as a whole; unchanged sentence translations are cached. Editing and AI Send leave capture running and preserve the text. Translation results for text edited away are discarded. Long input is translated in token-sized chunks instead of truncated to the model's context limit.
@@ -37,6 +39,8 @@ Translation input is scheduled after 200 ms, then takes the model's processing t
 Preferences are stored as JSON in `~/Library/Application Support/HelpMe/settings.json`.
 
 ## First setup (internet required)
+
+Only needed to build from source. The package `scripts/package.sh` produces needs none of this: it carries its own .NET runtime, its own Python and the models.
 
 Install the **.NET 8 SDK**, **x64 build** — this is an Intel Mac, and the arm64 installer will not run on it. Python 3.11 or newer is needed only for Korean translation; macOS ships a `python3` that will do. Restore/build needs internet once; running after setup does not.
 
@@ -73,15 +77,30 @@ Capture is requested as 16 kHz mono directly from the audio queue, which is what
 
 The default Base model, beam search, and longer six-second segments favor natural wording and accuracy over minimum latency. Use `models/ggml-small-q8_0.bin` for higher accuracy, or `models/ggml-tiny.en-q8_0.bin` when latency matters more. Recognition processors are reused between segments, and translation uses beam search with beam size 4 for improved phrasing at some additional computation cost. Actual live delay varies with hardware and audio.
 
-## Build the application bundle
+## Build the install package
 
 ```bash
 scripts/package.sh
 ```
 
-This writes `dist/HelpMe.app` and `dist/HelpMe-<version>.dmg` with a SHA-256 checksum. The bundle carries its own .NET runtime, the Whisper native libraries and the models, and is signed ad-hoc so Gatekeeper does not call it damaged after it is copied. Drag it to `/Applications` and open it once from there, so macOS asks for microphone access with the app's own name attached.
+This writes `dist/HelpMe.app` with everything it needs inside it, and nothing has to be installed on the Mac that runs it:
 
-The bundle declares `LSUIElement`, so it has no Dock icon and no window at launch: it is a menu bar application. Pass `--no-python` to leave the virtual environment out. A Python virtual environment is not relocatable on macOS, so the copied one still refers to the `python3` it was created from; that matters only if the bundle is moved to a Mac without that interpreter.
+| Inside the bundle | |
+| --- | --- |
+| The app and the .NET 8 runtime | self-contained `osx-x64`, no .NET install |
+| Whisper native libraries | `runtimes/macos-x64`, CPU and Accelerate BLAS |
+| Whisper models | base, small and tiny (`--models base` for just the default) |
+| A standalone Python 3.11 | `python/`, relocatable, no system Python needed |
+| Translation dependencies | CTranslate2, Transformers, SentencePiece and their own dependencies |
+| The Korean NLLB model | 618 MB, in `models/` |
+
+About 1.4 GB assembled. Run on macOS it also signs the bundle ad-hoc and writes `dist/HelpMe-<version>.dmg` with a SHA-256 checksum; run anywhere else it writes `dist/HelpMe-<version>-macos-x64.tar.gz` instead and says which macOS steps it skipped. The archive is written with the execute bits already set, so a package built on a Windows machine still unpacks into a working app.
+
+Drag `HelpMe.app` to `/Applications` and open it once from there, so macOS asks for microphone access with the app's own name attached. The bundle declares `LSUIElement`, so it has no Dock icon and no window at launch: it is a menu bar application.
+
+**The one thing that cannot be bundled is BlackHole.** A virtual audio device is a system installer of its own, with its own admin prompt, so a Mac that has only ever run this bundle will not have it. Help Me! notices and captures system audio with ScreenCaptureKit instead, and the status line reads `ScreenCaptureKit (BlackHole not installed)` so the substitution is never silent. Install BlackHole with `scripts/setup.sh --blackhole` to get the route that needs no permission.
+
+Options: `--version X.Y.Z` sets the recorded version, `--models base` ships only the default Whisper model, `--no-python` leaves out the interpreter and the Korean model, `--no-dmg` skips the disk image. The Python runtime is downloaded once into `.tools/package` and cached there.
 
 ## The web pages: panels 05 and 06
 
