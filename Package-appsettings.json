@@ -1,9 +1,0 @@
-{
-  "CaptionMethod": "Whisper",
-  "WhisperModelPath": "models/ggml-base.en-q8_0.bin",
-  "TranslationModelPath": "models/nllb-200-distilled-600M-int8",
-  "PythonPath": "python/python.exe",
-  "SpeechThreshold": 0.008,
-  "MaxSegmentSeconds": 6,
-  "SilenceSeconds": 0.7
-}

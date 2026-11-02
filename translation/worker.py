@@ -44,7 +44,10 @@ def main():
     send({"ready": True})
     for line in sys.stdin:
         try:
-            request = json.loads(line)
+            # A caller may open the stream with a UTF-8 signature: Windows
+            # PowerShell writes one ahead of the first line it pipes in. The
+            # mark belongs to the encoding, not to the request.
+            request = json.loads(line.lstrip("﻿"))
             text = request["text"].strip()
             source = request["source"]
             if not text:

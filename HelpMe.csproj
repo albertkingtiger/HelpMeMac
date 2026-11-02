@@ -1,24 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
     <AssemblyName>HelpMe</AssemblyName>
     <RootNamespace>HelpMe</RootNamespace>
+    <!-- The Mac mini is a 2018 Intel i7, so osx-x64 is the only runtime that
+         matters here; win-x64 stays listed so the UI can be run on a Windows
+         desktop while working on it. -->
+    <RuntimeIdentifiers>osx-x64;win-x64</RuntimeIdentifiers>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest></ApplicationManifest>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- The Objective-C bridge takes function pointers to its callbacks, which
+         is what the audio queue, the hot key and the script handlers call back
+         through. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
     <Compile Remove="dist\**\*.cs" />
+    <Compile Remove=".tools\**\*.cs" />
     <EmbeddedResource Remove="dist\**" />
     <None Remove="dist\**" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
+    <AvaloniaResource Include="Assets\**" />
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.3.22" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />

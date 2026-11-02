@@ -16,7 +16,7 @@ public sealed class SpeechEngine(AppSettings settings) : IDisposable
         {
             var path = AppSettings.Resolve(settings.WhisperModelPath);
             if (!File.Exists(path))
-                throw new FileNotFoundException($"Whisper model missing at '{path}'. Run scripts/setup.ps1 first.", path);
+                throw new FileNotFoundException($"Whisper model missing at '{path}'. Run scripts/setup.sh first.", path);
             factory ??= await Task.Run(() => WhisperFactory.FromPath(path));
         }
         finally { gate.Release(); }

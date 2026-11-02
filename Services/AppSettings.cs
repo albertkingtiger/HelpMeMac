@@ -1,31 +1,32 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using HelpMe.Services.Audio;
 
 namespace HelpMe.Services;
 
 public sealed class AppSettings
 {
-    public CaptionMethod CaptionMethod { get; set; } = CaptionMethod.Whisper;
+    public SystemAudioSource SystemAudioSource { get; set; } = SystemAudioSource.BlackHole;
     public string WhisperModelPath { get; set; } = "models/ggml-base.en-q8_0.bin";
     public string TranslationModelPath { get; set; } = "models/nllb-200-distilled-600M-int8";
-    public string PythonPath { get; set; } = ".venv/Scripts/python.exe";
+    public string PythonPath { get; set; } = ".venv/bin/python3";
     public double SpeechThreshold { get; set; } = 0.008;
     public double MaxSegmentSeconds { get; set; } = 6;
     public double SilenceSeconds { get; set; } = 0.7;
     public string AiProvider { get; set; } = "ChatGPT";
     public string AiProject { get; set; } = "";
     public string AiSession { get; set; } = "";
-    public string SendShortcut { get; set; } = "Ctrl+Shift+Z";
-    public string RestoreShortcut { get; set; } = "Ctrl+Alt+H";
-    public string TelegramShortcut { get; set; } = "Ctrl+Shift+T";
-    public string TelegramAllShortcut { get; set; } = "Ctrl+Shift+A";
+    public string SendShortcut { get; set; } = "Cmd+Shift+Z";
+    public string RestoreShortcut { get; set; } = "Cmd+Alt+H";
+    public string TelegramShortcut { get; set; } = "Cmd+Shift+T";
+    public string TelegramAllShortcut { get; set; } = "Cmd+Shift+A";
     public string MessengerTarget { get; set; } = "Telegram";
     public bool AutoSendAnswer { get; set; }
     public int AutoSendFirstChars { get; set; } = 100;
     public int AutoSendNextChars { get; set; } = 500;
     public string Theme { get; set; } = "Dark";
-    public bool StartWithWindows { get; set; } = true;
+    public bool StartAtLogin { get; set; } = true;
     public bool TranslationCollapsed { get; set; }
     public bool AiPanelCollapsed { get; set; }
     public bool ChatPanelCollapsed { get; set; }
@@ -38,13 +39,22 @@ public sealed class AppSettings
     public string TranslationTextColor { get; set; } = "#CCCCCC";
     public static string Root { get; private set; } = AppContext.BaseDirectory;
     private static string? projectRoot;
-    private static string PreferencesPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HelpMe", "settings.json");
+    // A Mac application keeps its preferences in Application Support. The
+    // framework's ApplicationData folder is the XDG one on this platform, which
+    // would put them somewhere no Mac user would look.
+    private static string PreferencesPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "Library", "Application Support", "HelpMe", "settings.json");
     private static string LocalPreferencesPath => Path.Combine(Root, "user-settings.json");
     private string preferencesWritePath = PreferencesPath;
-    public const string RegistryPath = "HelpMe";
+
+    // Set by the offscreen preview renderer so looking at the layout never
+    // touches the preferences the running app saved.
+    public static string? PreferencesPathOverride { get; set; }
 
     public static AppSettings Load(string? preferencesPathOverride = null)
     {
+        preferencesPathOverride ??= PreferencesPathOverride;
         Root = AppContext.BaseDirectory;
         projectRoot = null;
         for (var directory = new DirectoryInfo(Root); directory is not null; directory = directory.Parent)
@@ -75,11 +85,11 @@ public sealed class AppSettings
                     if (IsChunkSize(saved.AutoSendFirstChars)) result.AutoSendFirstChars = saved.AutoSendFirstChars;
                     if (IsChunkSize(saved.AutoSendNextChars)) result.AutoSendNextChars = saved.AutoSendNextChars;
                     result.Theme = saved.Theme is "Light" or "Dark" ? saved.Theme : "Dark";
-                    result.StartWithWindows = saved.StartWithWindows;
+                    result.StartAtLogin = saved.StartAtLogin;
                     result.TranslationCollapsed = saved.TranslationCollapsed;
                     result.AiPanelCollapsed = saved.AiPanelCollapsed;
                     result.ChatPanelCollapsed = saved.ChatPanelCollapsed;
-                    result.CaptionMethod = saved.CaptionMethod is CaptionMethod.WindowsLiveCaptions ? saved.CaptionMethod : CaptionMethod.Whisper;
+                    result.SystemAudioSource = Enum.IsDefined(saved.SystemAudioSource) ? saved.SystemAudioSource : SystemAudioSource.BlackHole;
                     if (saved.WindowWidth is >= 700 and <= 5000) result.WindowWidth = saved.WindowWidth;
                     if (saved.WindowHeight is >= 300 and <= 5000) result.WindowHeight = saved.WindowHeight;
                     if (IsFontSize(saved.PcFontSize)) result.PcFontSize = saved.PcFontSize;
@@ -95,10 +105,10 @@ public sealed class AppSettings
         return result;
     }
 
-    public void SaveCaptionMethod(CaptionMethod method)
+    public void SaveSystemAudioSource(SystemAudioSource source)
     {
-        if (!Enum.IsDefined(method)) throw new ArgumentOutOfRangeException(nameof(method));
-        CaptionMethod = method; SavePreferences();
+        if (!Enum.IsDefined(source)) throw new ArgumentOutOfRangeException(nameof(source));
+        SystemAudioSource = source; SavePreferences();
     }
     public void SaveAiPreferences(string provider, string project, string session)
     {
@@ -149,9 +159,9 @@ public sealed class AppSettings
         Theme = theme;
         SavePreferences();
     }
-    public void SaveStartWithWindows(bool enabled)
+    public void SaveStartAtLogin(bool enabled)
     {
-        StartWithWindows = enabled;
+        StartAtLogin = enabled;
         SavePreferences();
     }
     public void SaveCollapsedSections(bool translationCollapsed,
@@ -186,8 +196,8 @@ public sealed class AppSettings
     {
         var json = JsonSerializer.Serialize(new Preferences(AiProvider, AiProject, AiSession, WindowWidth, WindowHeight,
             PcFontSize, PcTextColor, PcCaretColor, TranslationFontSize, TranslationTextColor,
-            SendShortcut, Theme, CaptionMethod, RestoreShortcut,
-            StartWithWindows, TranslationCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
+            SendShortcut, Theme, SystemAudioSource, RestoreShortcut,
+            StartAtLogin, TranslationCollapsed, TelegramShortcut, TelegramAllShortcut, MessengerTarget,
             AutoSendAnswer, AutoSendFirstChars, AutoSendNextChars, AiPanelCollapsed, ChatPanelCollapsed),
             new JsonSerializerOptions { WriteIndented = true });
         try
@@ -214,10 +224,11 @@ public sealed class AppSettings
         double WindowWidth = 1060, double WindowHeight = 860,
         double PcFontSize = 14, string PcTextColor = "#CCCCCC", string PcCaretColor = "#AEAFAD",
         double TranslationFontSize = 14, string TranslationTextColor = "#CCCCCC",
-        string SendShortcut = "Ctrl+Shift+Z", string Theme = "Dark", CaptionMethod CaptionMethod = CaptionMethod.Whisper,
-        string RestoreShortcut = "Ctrl+Alt+H", bool StartWithWindows = true,
+        string SendShortcut = "Cmd+Shift+Z", string Theme = "Dark",
+        SystemAudioSource SystemAudioSource = SystemAudioSource.BlackHole,
+        string RestoreShortcut = "Cmd+Alt+H", bool StartAtLogin = true,
         bool TranslationCollapsed = false,
-        string TelegramShortcut = "Ctrl+Shift+T", string TelegramAllShortcut = "Ctrl+Shift+A", string MessengerTarget = "Telegram",
+        string TelegramShortcut = "Cmd+Shift+T", string TelegramAllShortcut = "Cmd+Shift+A", string MessengerTarget = "Telegram",
         bool AutoSendAnswer = false, int AutoSendFirstChars = 100, int AutoSendNextChars = 500,
         bool AiPanelCollapsed = false, bool ChatPanelCollapsed = false);
     public static string Resolve(string path)

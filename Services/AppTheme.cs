@@ -1,8 +1,10 @@
-using System.Windows;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Media;
 
 namespace HelpMe.Services;
 
+// The two palettes, applied as application resources so every panel, button and
+// editor follows the choice made in Settings without being rebuilt.
 public static class AppTheme
 {
     private static readonly Dictionary<string, string> Dark = new()
@@ -33,8 +35,10 @@ public static class AppTheme
 
     public static void Apply(string theme)
     {
+        if (Application.Current is not { } application) return;
         foreach (var (key, value) in theme == "Light" ? Light : Dark)
-            System.Windows.Application.Current.Resources[key] = new SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value));
+            application.Resources[key] = new SolidColorBrush(Color.Parse(value));
     }
+
+    public static IBrush Brush(string color) => new SolidColorBrush(Color.Parse(color));
 }

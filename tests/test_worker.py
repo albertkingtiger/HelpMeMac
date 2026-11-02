@@ -76,6 +76,10 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(replies[1], {"text": "안녕"})
         self.assertEqual(calls, [])
 
+    def test_leading_byte_order_mark_is_not_part_of_the_request(self):
+        replies, calls = self.run_worker(["﻿" + json.dumps({"text": "Hello", "source": "eng_Latn"})])
+        self.assertEqual(replies[1], {"text": "안녕하세요"})
+
     def test_malformed_request_does_not_break_following_request(self):
         replies, calls = self.run_worker(["not-json", {"text": "Hello", "source": "eng_Latn"}])
         self.assertIn("error", replies[1])

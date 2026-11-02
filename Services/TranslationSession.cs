@@ -24,9 +24,9 @@ public sealed class TranslationSession : IAsyncDisposable
         this.caption = caption; this.status = status; this.sourceLanguage = sourceLanguage;
         var model = AppSettings.Resolve(settings.TranslationModelPath);
         if (!File.Exists(Path.Combine(model, "model.bin")))
-            throw new FileNotFoundException($"Translation model missing at '{model}'. Run scripts/setup.ps1 -Translation first.");
+            throw new FileNotFoundException($"Translation model missing at '{model}'. Run scripts/setup.sh --translation first.");
         var python = AppSettings.Resolve(settings.PythonPath);
-        if (!File.Exists(python)) throw new FileNotFoundException($"Python environment missing at '{python}'. Run scripts/setup.ps1 -Translation first.");
+        if (!File.Exists(python)) throw new FileNotFoundException($"Python environment missing at '{python}'. Run scripts/setup.sh --translation first.");
         var start = new ProcessStartInfo(python)
         {
             UseShellExecute = false, CreateNoWindow = true,
@@ -34,22 +34,18 @@ public sealed class TranslationSession : IAsyncDisposable
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
             StandardInputEncoding = new UTF8Encoding(false), WorkingDirectory = AppSettings.Root
         };
-        var pythonDirectory = Path.GetDirectoryName(python) ?? AppSettings.Root;
-        var packageSitePackages = new[]
-        {
-            Path.Combine(pythonDirectory, "Lib", "site-packages"),
-            Path.Combine(AppSettings.Root, ".venv", "Lib", "site-packages")
-        }.FirstOrDefault(Directory.Exists);
+        // A macOS virtual environment keeps its packages under
+        // lib/python3.N/site-packages, and the minor version is whichever
+        // python3 the setup script found, so the folder is looked up rather
+        // than assumed. The CTranslate2 wheel carries its own dylibs with the
+        // right load paths, so unlike the Windows build nothing has to be added
+        // to the library search path.
+        var packageSitePackages = FindSitePackages(python);
         if (packageSitePackages is not null)
         {
             var existing = Environment.GetEnvironmentVariable("PYTHONPATH");
             start.Environment["PYTHONPATH"] = packageSitePackages +
                 (string.IsNullOrWhiteSpace(existing) ? "" : Path.PathSeparator + existing);
-            var nativePackage = Path.Combine(packageSitePackages, "ctranslate2");
-            var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-            start.Environment["PATH"] = string.Join(Path.PathSeparator,
-                new[] { nativePackage, packageSitePackages, pythonDirectory, path }
-                    .Where(value => !string.IsNullOrWhiteSpace(value)));
         }
         start.ArgumentList.Add("-u");
         start.ArgumentList.Add(AppSettings.Resolve("translation/worker.py"));
@@ -63,6 +59,25 @@ public sealed class TranslationSession : IAsyncDisposable
             if (args.Data is null) return;
             lock (errors) { errors.AppendLine(args.Data); if (errors.Length > 4000) errors.Remove(0, errors.Length - 4000); }
         };
+    }
+
+    // The virtual environment beside the executable, or the one in the project
+    // folder when the app is being run from a build directory.
+    private static string? FindSitePackages(string python)
+    {
+        var environmentRoot = Path.GetDirectoryName(Path.GetDirectoryName(python));
+        foreach (var root in new[] { environmentRoot, Path.Combine(AppSettings.Root, ".venv") })
+        {
+            if (string.IsNullOrWhiteSpace(root)) continue;
+            var library = Path.Combine(root, "lib");
+            if (!Directory.Exists(library)) continue;
+            foreach (var version in Directory.EnumerateDirectories(library, "python3*"))
+            {
+                var packages = Path.Combine(version, "site-packages");
+                if (Directory.Exists(packages)) return packages;
+            }
+        }
+        return null;
     }
 
     public async Task StartAsync()

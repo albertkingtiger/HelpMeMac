@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HelpMe.SettingsWindow"
+        Title="Settings" Width="580" Height="820"
+        CanResize="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WindowBackground}" Foreground="{DynamicResource Foreground}"
+        FontFamily="-apple-system,Helvetica Neue,Segoe UI,sans-serif" FontSize="13">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="56"/>
+    </Grid.RowDefinitions>
+
+    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="1"
+            PointerPressed="Title_PointerPressed">
+      <DockPanel Margin="12,0,0,0">
+        <Button DockPanel.Dock="Right" Content="Close" Width="60" Click="Cancel_Click"
+                ToolTip.Tip="Close settings" AutomationProperties.Name="Close settings"/>
+        <TextBlock Text="Settings" VerticalAlignment="Center"/>
+      </DockPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="24,18,24,18">
+        <TextBlock Text="THEME" Classes="hint" Margin="0,0,0,12"/>
+        <ComboBox x:Name="ThemeCombo" Width="160" HorizontalAlignment="Left" Margin="0,0,0,18"
+                  SelectionChanged="Theme_SelectionChanged"/>
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+
+        <TextBlock Text="STARTUP" Classes="hint" Margin="0,0,0,12"/>
+        <CheckBox x:Name="StartAtLoginCheck" Content="Start Help Me! when I log in"/>
+        <TextBlock Text="Help Me! always starts hidden in the menu bar and keeps running there. Use the restore shortcut or the menu bar icon to show it, and Exit in that menu to quit."
+                   Classes="note" Margin="23,6,0,18"/>
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+
+        <TextBlock Text="PC AUDIO SOURCE" Classes="hint" Margin="0,0,0,12"/>
+        <RadioButton x:Name="BlackHoleOption" Content="BlackHole (virtual device)" GroupName="AudioSource" IsChecked="True"/>
+        <TextBlock x:Name="BlackHoleStatus" Classes="note" Margin="23,6,0,12"/>
+        <RadioButton x:Name="ScreenCaptureOption" Content="ScreenCaptureKit (system audio)" GroupName="AudioSource"/>
+        <TextBlock Text="Captures what the Mac is playing with no driver to install, but macOS counts it as screen recording: it asks for Screen Recording permission and asks again from time to time. Captions stop when that lapses."
+                   Classes="note" Margin="23,6,0,20"/>
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+
+        <TextBlock Text="PAGES" Classes="hint" Margin="0,0,0,12"/>
+        <TextBlock Text="The AI and chat pages run inside Help Me! as panels 05 and 06. Sign in to them once there; they keep their sign-ins between runs."
+                   Classes="note" Margin="0,0,0,18"/>
+
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="146"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="AI provider" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <ComboBox Grid.Row="0" Grid.Column="1" x:Name="ProviderCombo" Margin="0,0,0,10" HorizontalAlignment="Stretch"/>
+          <TextBlock Grid.Row="1" Text="Project" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="ProjectBox" Classes="settings" Margin="0,0,0,10"
+                   ToolTip.Tip="Saved preference. Send uses the conversation already open in panel 05."/>
+          <TextBlock Grid.Row="2" Text="Session" VerticalAlignment="Center" Margin="0,0,0,10"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="SessionBox" Classes="settings" Margin="0,0,0,10"
+                   ToolTip.Tip="Saved preference. Send uses the conversation already open in panel 05."/>
+          <TextBlock Grid.Row="3" Text="Send shortcut" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="SendShortcutText" Classes="settings" IsReadOnly="True"
+                   KeyDown="Shortcut_KeyDown" Tag="Cmd+Shift+Z" ToolTip.Tip="Click here, then press the new shortcut"/>
+          <TextBlock Grid.Row="4" Text="Restore shortcut" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <TextBox Grid.Row="4" Grid.Column="1" x:Name="RestoreShortcutText" Classes="settings" IsReadOnly="True"
+                   KeyDown="Shortcut_KeyDown" Tag="Cmd+Alt+H" Margin="0,10,0,0"
+                   ToolTip.Tip="System-wide shortcut to show Help Me! from the menu bar"/>
+          <TextBlock Grid.Row="5" Text="Send Selection" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <TextBox Grid.Row="5" Grid.Column="1" x:Name="TelegramShortcutText" Classes="settings" IsReadOnly="True"
+                   KeyDown="Shortcut_KeyDown" Tag="Cmd+Shift+T" Margin="0,10,0,0"
+                   ToolTip.Tip="Sends the text selected in the AI answer, or all of it when nothing is selected"/>
+          <TextBlock Grid.Row="6" Text="All Send" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <TextBox Grid.Row="6" Grid.Column="1" x:Name="TelegramAllShortcutText" Classes="settings" IsReadOnly="True"
+                   KeyDown="Shortcut_KeyDown" Tag="Cmd+Shift+A" Margin="0,10,0,0"
+                   ToolTip.Tip="Sends the whole AI answer, ignoring any selection"/>
+          <TextBlock Grid.Row="7" Text="Send answers to" VerticalAlignment="Center" Margin="0,10,0,0"/>
+          <ComboBox Grid.Row="7" Grid.Column="1" x:Name="MessengerCombo" Margin="0,10,0,0" HorizontalAlignment="Stretch"
+                    ToolTip.Tip="Which chat app the panel 05 buttons post the AI answer to"/>
+        </Grid>
+
+        <TextBlock Text="Send uses the conversation already open in panel 05." Classes="note" Margin="0,14,0,14"/>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Auto-send, first message" VerticalAlignment="Center" Margin="0,0,10,0"/>
+          <TextBox x:Name="AutoSendFirstCharsText" Classes="settings" Width="56"
+                   ToolTip.Tip="Characters in the opening message, 20 to 4000"/>
+          <TextBlock Text="characters, then" VerticalAlignment="Center" Margin="10,0,10,0"/>
+          <TextBox x:Name="AutoSendNextCharsText" Classes="settings" Width="56"
+                   ToolTip.Tip="Characters in each message after the first, 20 to 4000"/>
+          <TextBlock Text="characters" VerticalAlignment="Center" Margin="10,0,0,0"/>
+        </StackPanel>
+        <TextBlock Text="Auto-send itself is the checkbox at the bottom of panel 05. While it is on, the opening message goes out as soon as the answer reaches the first size, so the reader sees something straight away, and the rest follow at the second size. Messages are whole sentences, so a size is a target to reach rather than a place to cut. The first message of each answer starts with a line of asterisks. A code block is held back until it closes, and the rest of the answer follows when it ends. Text that has already gone out cannot be recalled if the AI rewrites it."
+                   Classes="note" Margin="0,8,0,20"/>
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,18"/>
+
+        <TextBlock Text="EDITOR APPEARANCE" Classes="hint" Margin="0,0,0,12"/>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="146"/><ColumnDefinition Width="70"/><ColumnDefinition Width="120"/><ColumnDefinition Width="120"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Grid.Column="1" Text="Font size" Classes="hint"/>
+          <TextBlock Grid.Column="2" Text="Text color" Classes="hint"/>
+          <TextBlock Grid.Column="3" Text="Caret color" Classes="hint"/>
+
+          <TextBlock Grid.Row="1" Text="01  PC AUDIO" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="PcFontSizeText" Classes="settings" Width="56"
+                   HorizontalAlignment="Left" Margin="0,8,0,4"/>
+          <ColorPicker Grid.Row="1" Grid.Column="2" x:Name="PcTextColorPicker" Width="104" Height="28"
+                       HorizontalAlignment="Left" Margin="0,8,8,4" ToolTip.Tip="Choose PC caption text color"/>
+          <ColorPicker Grid.Row="1" Grid.Column="3" x:Name="PcCaretColorPicker" Width="104" Height="28"
+                       HorizontalAlignment="Left" Margin="0,8,0,4" ToolTip.Tip="Choose PC caption caret color"/>
+
+          <TextBlock Grid.Row="2" Text="02  TRANSLATION" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="TranslationFontSizeText" Classes="settings" Width="56"
+                   HorizontalAlignment="Left" Margin="0,4"/>
+          <ColorPicker Grid.Row="2" Grid.Column="2" x:Name="TranslationTextColorPicker" Width="104" Height="28"
+                       HorizontalAlignment="Left" Margin="0,4,8,4" ToolTip.Tip="Choose translation text color"/>
+        </Grid>
+        <TextBlock Text="Font sizes can be from 8 to 48." Classes="hint" Margin="146,10,0,0"/>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Validation is reported here rather than in a dialog of its own: the
+         field that needs attention stays on screen beside the message. -->
+    <TextBlock Grid.Row="2" x:Name="Validation" IsVisible="False" Foreground="{DynamicResource Error}"
+               TextWrapping="Wrap" Margin="24,0,24,8"/>
+
+    <Border Grid.Row="3" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="24,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Button Content="Cancel" Click="Cancel_Click" MinWidth="72" Margin="0,0,8,0"/>
+        <Button Content="Save" Classes="primary" Click="Save_Click" MinWidth="72" IsDefault="True"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

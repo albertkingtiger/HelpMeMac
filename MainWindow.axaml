@@ -1,0 +1,221 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mac="clr-namespace:HelpMe.Services.Mac"
+        x:Class="HelpMe.MainWindow"
+        Title="Help Me!" Width="1500" Height="860" MinWidth="700" MinHeight="300"
+        Icon="avares://HelpMe/Assets/helpme.png"
+        Background="{DynamicResource WindowBackground}" Foreground="{DynamicResource Foreground}"
+        FontFamily="-apple-system,Helvetica Neue,Segoe UI,sans-serif" FontSize="12"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
+        ExtendClientAreaTitleBarHeightHint="36">
+  <!-- Avalonia does not give a row or column definition a field of its own,
+       so the ones that collapse are reached through the grid by position. -->
+  <Grid x:Name="RootGrid">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="5"/>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="5"/>
+      <ColumnDefinition Width="1.3*"/>
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="36"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="0"/>
+      <RowDefinition Height="26"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- The title bar. macOS draws its own close, minimise and zoom buttons
+         over the left of this strip, so the app's own name starts clear of
+         them. There is no close button of Help Me!'s own: the red one hides
+         the window and capture carries on, exactly as the Windows build did
+         with its minimise button. -->
+    <Border Grid.ColumnSpan="5" Background="{DynamicResource Surface}"
+            BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1"
+            PointerPressed="TitleBar_PointerPressed">
+      <Grid Margin="82,0,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Image Source="avares://HelpMe/Assets/helpme.png" Width="18" Height="18" Margin="0,0,8,0"/>
+          <TextBlock Text="Help Me!" FontSize="13" VerticalAlignment="Center"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+          <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" Margin="0,0,4,0"/>
+          <ToggleButton x:Name="AlwaysOnTopToggle" Content="Always on Top" Click="AlwaysOnTop_Click"
+                        Margin="0,0,8,0" ToolTip.Tip="Keep Help Me! above other windows"/>
+          <Button Content="Hide" Width="48" MinWidth="48" Click="Minimize_Click"
+                  ToolTip.Tip="Hide to the menu bar. Help Me! keeps running; use its menu to quit."
+                  AutomationProperties.Name="Hide to the menu bar"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid x:Name="CaptionGrid" Grid.Row="1" Grid.Column="0" Margin="8,8,0,0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="5"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <Border Classes="panel">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Classes="sectionHeader">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border Classes="sectionTab">
+                <TextBlock Text="01  PC AUDIO" Classes="sectionLabel"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Format" Click="Format_Click" ToolTip.Tip="Clear all PC caption text"/>
+                <Button x:Name="SaveButton" Content="Save" Click="Save_Click" ToolTip.Tip="Save captions as a text file"/>
+                <ToggleButton x:Name="PcToggle" Classes="startStop" Click="PcToggle_Click"
+                              AutomationProperties.Name="PC captions start or stop" Margin="4,0,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <TextBox Grid.Row="1" x:Name="PcText" Classes="editor"
+                   PointerPressed="PcText_PointerPressed"
+                   ToolTip.Tip="Click a word to save the AI send position."
+                   AutomationProperties.Name="PC audio captions"/>
+        </Grid>
+      </Border>
+
+      <GridSplitter x:Name="TranslationSplitter" Grid.Row="1"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                    ToolTip.Tip="Drag to resize PC audio and translation"/>
+
+      <Border Grid.Row="2" Classes="panel">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Classes="sectionHeader">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border Classes="sectionTab">
+                <TextBlock Text="02  TRANSLATION" Classes="sectionLabel"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Format" Click="TranslationFormat_Click" ToolTip.Tip="Clear translated text"/>
+                <Button Content="Save" Click="Save_Click" Tag="Translation" ToolTip.Tip="Save translated text as a file"/>
+                <ToggleButton x:Name="TranslationToggle" Classes="startStop" Click="TranslationToggle_Click"
+                              AutomationProperties.Name="Korean translation start or stop" Margin="4,0,0,0"/>
+                <ToggleButton x:Name="TranslationCollapseToggle" Classes="sectionCollapse" Click="TranslationCollapse_Click"
+                              Margin="4,0,0,0" ToolTip.Tip="Hide or show the translation section (Cmd+2)"
+                              AutomationProperties.Name="Hide or show the translation section"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <TextBox Grid.Row="1" x:Name="TranslationText" Classes="editor" IsReadOnly="True"
+                   Padding="0,5" AutomationProperties.Name="Korean translation"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <GridSplitter x:Name="AnswerSplitter" Grid.Row="1" Grid.Column="1"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                  ToolTip.Tip="Drag to resize the caption and AI panels"/>
+
+    <Border Grid.Row="1" Grid.Column="2" x:Name="AiPanel" Classes="panel" Margin="0,8,0,0">
+      <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Border Classes="sectionHeader">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Border Classes="sectionTab">
+              <TextBlock x:Name="AiPanelTitle" Text="05  AI" Classes="sectionLabel"/>
+            </Border>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+              <StackPanel x:Name="AiHeaderActions" Orientation="Horizontal">
+                <Button Content="Save" Click="Save_Click" Tag="Answer" ToolTip.Tip="Save the answer as a text file"/>
+                <Button x:Name="AiPanelReloadButton" Content="Reload" Click="BrowserReload_Click" Tag="Ai"
+                        ToolTip.Tip="Reload the AI page"/>
+                <Button x:Name="AnswerSendButton" Content="Send" Classes="primary" Click="AnswerSend_Click"
+                        Margin="4,0,0,0" ToolTip.Tip="Send captions"/>
+              </StackPanel>
+              <ToggleButton x:Name="AiPanelCollapseToggle" Classes="sectionCollapse" Click="AiPanelCollapse_Click"
+                            Margin="4,0,0,0" ToolTip.Tip="Hide or show the AI panel (Cmd+5)"
+                            AutomationProperties.Name="Hide or show the AI panel"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+        <mac:MacWebView Grid.Row="1" x:Name="AiWebView" AutomationProperties.Name="AI web page"/>
+        <Border Grid.Row="2" x:Name="TelegramBar" Background="{DynamicResource Surface}"
+                BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="6,5">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <CheckBox x:Name="AutoSendCheck" Content="Auto-send" VerticalAlignment="Center" Margin="0,0,10,0"
+                      IsCheckedChanged="AutoSend_Changed"
+                      ToolTip.Tip="Send the answer as it is written, a few sentences at a time"
+                      AutomationProperties.Name="Auto-send the answer while it is still generating"/>
+            <TextBlock x:Name="AutoSendHint" VerticalAlignment="Center" Margin="0,0,10,0" Classes="hint" IsVisible="False"/>
+            <Button x:Name="TelegramSendAllButton" Content="All Send" Click="TelegramSendAll_Click"
+                    MinWidth="90" Margin="0,0,8,0"
+                    AutomationProperties.Name="Send the whole AI answer"/>
+            <Button x:Name="TelegramSendButton" Content="Send Selection" Click="TelegramSend_Click"
+                    MinWidth="120"
+                    AutomationProperties.Name="Send the part selected on the AI page"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <GridSplitter x:Name="BrowserSplitter" Grid.Row="1" Grid.Column="3"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                  ToolTip.Tip="Drag to resize the answer and browser panels"/>
+
+    <Grid Grid.Row="1" Grid.Column="4" x:Name="BrowserPanels" Margin="0,8,8,0">
+      <Border Classes="panel">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border Classes="sectionHeader">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Border Classes="sectionTab">
+                <TextBlock x:Name="ChatPanelTitle" Text="06  CHAT" Classes="sectionLabel"/>
+              </Border>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ChatPanelReloadButton" Content="Reload" Click="BrowserReload_Click" Tag="Chat"
+                        ToolTip.Tip="Reload the chat page"/>
+                <ToggleButton x:Name="ChatPanelCollapseToggle" Classes="sectionCollapse" Click="ChatPanelCollapse_Click"
+                              Margin="4,0,0,0" ToolTip.Tip="Hide or show the chat panel (Cmd+6)"
+                              AutomationProperties.Name="Hide or show the chat panel"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <mac:MacWebView Grid.Row="1" x:Name="ChatWebView" AutomationProperties.Name="Chat web page"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Panel 03 keeps its controls but no space: the microphone is captured
+         and its text saved without taking room from the three columns. -->
+    <Border Grid.Row="2" Grid.Column="2" Classes="panel" IsVisible="False">
+      <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Border Classes="sectionHeader">
+          <DockPanel>
+            <ToggleButton x:Name="MicToggle" Classes="startStop" DockPanel.Dock="Right" Click="MicToggle_Click"
+                          AutomationProperties.Name="Microphone captions start or stop"/>
+            <Button Content="Format" DockPanel.Dock="Right" Click="MicFormat_Click"/>
+            <Button Content="Save" DockPanel.Dock="Right" Click="Save_Click" Tag="Microphone"/>
+            <TextBlock Text="03  MICROPHONE" Classes="sectionLabel"/>
+          </DockPanel>
+        </Border>
+        <TextBox Grid.Row="1" x:Name="MicText" Classes="editor" AutomationProperties.Name="Microphone captions"/>
+      </Grid>
+    </Border>
+
+    <DockPanel Grid.Row="3" Grid.ColumnSpan="5" Margin="12,0" VerticalAlignment="Center">
+      <TextBlock x:Name="SendShortcutHint" DockPanel.Dock="Right" Text="Cmd+Shift+Z  Send" Classes="hint"/>
+      <TextBlock x:Name="CaptionSourceHint" Text="BlackHole  &#x2022;  Offline captions" Classes="hint"/>
+    </DockPanel>
+    <TextBlock Grid.Row="4" Grid.ColumnSpan="5" x:Name="Status" IsVisible="False"
+               Foreground="{DynamicResource Error}" TextWrapping="Wrap" Margin="12,0,12,8"/>
+  </Grid>
+</Window>

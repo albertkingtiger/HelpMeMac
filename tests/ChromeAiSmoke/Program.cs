@@ -159,15 +159,34 @@ try
         {
             var updates = new List<string>();
             var prompt = $"Caption {sendNumber}: What's next?\nSecond sentence.";
-            if (currentPath.Contains("draft") && sendNumber == 1)
-                await inspection.EvaluateAsync($"(() => {{ const e=document.querySelector('#prompt-textarea,[contenteditable=true]'); if ('value' in e) e.value={JsonSerializer.Serialize(prompt)}; else e.innerText={JsonSerializer.Serialize(prompt)}; e.dispatchEvent(new InputEvent('input',{{bubbles:true}})); return true; }})()", token);
+            Task Prefill(string text) => inspection.EvaluateAsync($"(() => {{ const e=document.querySelector('#prompt-textarea,[contenteditable=true]'); if ('value' in e) e.value={JsonSerializer.Serialize(text)}; else e.innerText={JsonSerializer.Serialize(text)}; e.dispatchEvent(new InputEvent('input',{{bubbles:true}})); return true; }})()", token);
+            if (currentPath.Contains("draft") && sendNumber == 1) await Prefill(prompt);
+            // A draft the user typed themselves must survive: the caption goes
+            // below it rather than replacing it or being refused.
+            string? typed = null;
+            if (currentPath.Contains("typed") && sendNumber == 1)
+            {
+                typed = "My own half-written question";
+                await Prefill(typed);
+            }
             var answer = await ChromeAiClient.SendToPageAsync(socket!, provider, prompt, updates.Add, token);
             Check(answer == "Complete answer\nSecond line", provider + " complete assistant reply");
             Check(updates.Contains("Partial") && updates.Last() == answer, "Progress streaming");
             var state = await inspection.EvaluateAsync("({path:location.pathname,prompt:window.lastPrompt,sends:window.sends,identity:window.fixtureIdentity})", token);
             Check(state.GetProperty("path").GetString() == currentPath && state.GetProperty("identity").GetString() == identity,
                 "Current conversation preserved without navigation or reload");
-            Check(state.GetProperty("prompt").GetString() == prompt, "Caption text sent unchanged");
+            // A contenteditable may represent a break as \n or \r\n, and a blank
+            // line between two blocks as one break more than was inserted, so the
+            // separator is checked for a blank line rather than byte for byte.
+            var sent = (state.GetProperty("prompt").GetString() ?? "").Replace("\r\n", "\n").Replace("\r", "\n");
+            if (typed is null) Check(sent == prompt, "Caption text sent unchanged");
+            else
+            {
+                var framed = sent.Length >= typed.Length + prompt.Length && sent.StartsWith(typed) && sent.EndsWith(prompt);
+                var separator = framed ? sent[typed.Length..^prompt.Length] : "";
+                Check(framed && separator.Trim('\n').Length == 0 && separator.Count(c => c == '\n') >= 2,
+                    "A typed draft is kept with the caption a blank line below it");
+            }
             Check(state.GetProperty("sends").GetInt32() == sendNumber, "Exactly one submission per request");
         }
     }
@@ -179,6 +198,8 @@ try
     await Run("Claude", "/chat/fallback");
     await Run("ChatGPT", "/c/draft");
     await Run("Claude", "/chat/draft");
+    await Run("ChatGPT", "/c/typed");
+    await Run("Claude", "/chat/typed");
 
     // Telegram is a delivery destination: the text must reach the open chat and
     // the call must return without waiting for any reply.

@@ -1,4 +1,5 @@
 using HelpMe.Services;
+using HelpMe.Services.Audio;
 
 // Launch this check from any unrelated working directory, as Explorer does.
 // Use an isolated preferences file so the test never touches the user's settings.
@@ -44,17 +45,17 @@ try
         appearanceSettings.PcCaretColor != "#44AA66" ||
         appearanceSettings.TranslationFontSize != 16 || appearanceSettings.TranslationTextColor != "#778899")
         throw new Exception("Editor appearance settings did not round-trip through JSON preferences.");
-    settings.SaveSendShortcut("Ctrl+Alt+K");
-    if (AppSettings.Load(preferencePath).SendShortcut != "Ctrl+Alt+K")
+    settings.SaveSendShortcut("Cmd+Alt+K");
+    if (AppSettings.Load(preferencePath).SendShortcut != "Cmd+Alt+K")
         throw new Exception("Send shortcut did not round-trip through JSON preferences.");
-    settings.SaveRestoreShortcut("Ctrl+Alt+H");
-    if (AppSettings.Load(preferencePath).RestoreShortcut != "Ctrl+Alt+H")
+    settings.SaveRestoreShortcut("Cmd+Alt+H");
+    if (AppSettings.Load(preferencePath).RestoreShortcut != "Cmd+Alt+H")
         throw new Exception("Restore shortcut did not round-trip through JSON preferences.");
-    settings.SaveTelegramShortcut("Ctrl+Alt+G");
-    if (AppSettings.Load(preferencePath).TelegramShortcut != "Ctrl+Alt+G")
+    settings.SaveTelegramShortcut("Cmd+Alt+G");
+    if (AppSettings.Load(preferencePath).TelegramShortcut != "Cmd+Alt+G")
         throw new Exception("Telegram shortcut did not round-trip through JSON preferences.");
-    settings.SaveTelegramAllShortcut("Ctrl+Alt+J");
-    if (AppSettings.Load(preferencePath).TelegramAllShortcut != "Ctrl+Alt+J")
+    settings.SaveTelegramAllShortcut("Cmd+Alt+J");
+    if (AppSettings.Load(preferencePath).TelegramAllShortcut != "Cmd+Alt+J")
         throw new Exception("All Send shortcut did not round-trip through JSON preferences.");
     Console.WriteLine("PASS: configurable Send Selection and All Send shortcut persistence");
     settings.SaveMessengerTarget("WhatsApp");
@@ -83,21 +84,22 @@ try
         throw new Exception("Auto-send did not turn back off through JSON preferences.");
     Console.WriteLine("PASS: auto-send toggle and sentence count persistence");
     settings.SaveTheme("Light");
-    settings.SaveCaptionMethod(CaptionMethod.WindowsLiveCaptions);
+    settings.SaveSystemAudioSource(SystemAudioSource.ScreenCaptureKit);
     var displaySettings = AppSettings.Load(preferencePath);
-    if (displaySettings.Theme != "Light" || displaySettings.CaptionMethod != CaptionMethod.WindowsLiveCaptions)
-        throw new Exception("Theme and caption source did not round-trip through JSON preferences.");
+    if (displaySettings.Theme != "Light" || displaySettings.SystemAudioSource != SystemAudioSource.ScreenCaptureKit)
+        throw new Exception("Theme and PC audio source did not round-trip through JSON preferences.");
+    settings.SaveSystemAudioSource(SystemAudioSource.BlackHole);
     Console.WriteLine("PASS: AI provider and destination preference persistence");
     Console.WriteLine("PASS: per-editor font and color preference persistence");
     Console.WriteLine("PASS: configurable send shortcut preference persistence");
-    Console.WriteLine("PASS: configurable tray restore shortcut preference persistence");
-    Console.WriteLine("PASS: theme and Windows caption source persistence");
-    settings.SaveStartWithWindows(false);
+    Console.WriteLine("PASS: configurable menu bar restore shortcut preference persistence");
+    Console.WriteLine("PASS: theme and PC audio source persistence");
+    settings.SaveStartAtLogin(false);
     settings.SaveCollapsedSections(translationCollapsed: true);
     var layout = AppSettings.Load(preferencePath);
-    if (layout.StartWithWindows || !layout.TranslationCollapsed)
+    if (layout.StartAtLogin || !layout.TranslationCollapsed)
         throw new Exception("Startup and collapsed-section settings did not round-trip through JSON preferences.");
-    Console.WriteLine("PASS: Windows startup and collapsed section persistence");
+    Console.WriteLine("PASS: start-at-login and collapsed section persistence");
     settings.SaveCollapsedSections(translationCollapsed: false,
         aiPanelCollapsed: true, chatPanelCollapsed: false);
     var panels = AppSettings.Load(preferencePath);

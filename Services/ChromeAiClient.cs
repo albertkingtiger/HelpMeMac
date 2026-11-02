@@ -28,7 +28,11 @@ public sealed record Messenger(string Name, string Host, string Url, string Comp
 // All browser work is asynchronous. No cookies, tokens, or private service APIs are used.
 public sealed class ChromeAiClient
 {
-    public static string DiagnosticPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HelpMe", "logs", "ai-reader.log");
+    // Mac applications put their logs in ~/Library/Logs, where Console.app
+    // and anyone looking for them will find them.
+    public static string DiagnosticPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "Library", "Logs", "HelpMe", "ai-reader.log");
     public static async Task<string> SendAsync(int port, string provider,
         string prompt, Action<string>? progress, CancellationToken cancellation)
     {
@@ -41,7 +45,7 @@ public sealed class ChromeAiClient
             x.GetProperty("type").GetString() == "page" &&
             Uri.TryCreate(x.GetProperty("url").GetString(), UriKind.Absolute, out var uri) && uri.Host == host);
         if (page.ValueKind == JsonValueKind.Undefined)
-            throw new IOException($"Open {provider} in Help Me!'s Chrome window and sign in first.");
+            throw new IOException($"Open {provider} in panel 05 and sign in first.");
         // Diagnostic metadata only: never write prompts, replies, titles, URLs or cookies.
         void Trace(string message)
         {
@@ -84,7 +88,7 @@ public sealed class ChromeAiClient
         if (Messenger.Find(provider) is { } target) return await SendToMessengerAsync(page, target, prompt, token, diagnostics);
         diagnostics?.Invoke("stage=find-input");
         await WaitForAsync(async () => (await page.EvaluateAsync(BrowserScripts.ComposerReady, token)).GetBoolean(),
-            "The AI message input is unavailable. Sign in to the selected provider and open a conversation in Chrome.", token);
+            "The AI message input is unavailable. Sign in to the selected provider and open a conversation in panel 05.", token);
         // Wait for conversation history to settle before taking the assistant baseline.
         await Task.Delay(600, token);
         diagnostics?.Invoke("stage=read-baseline");
@@ -92,17 +96,22 @@ public sealed class ChromeAiClient
         var oldMessages = baseline.Messages.ToDictionary(m => m.Key, m => m.Text);
         diagnostics?.Invoke("stage=prepare-input");
         var prepared = await page.EvaluateAsync(BrowserScripts.PrepareInput(prompt), token);
-        diagnostics?.Invoke("input=" + prepared.GetString());
-        if (prepared.GetString() is not ("ready" or "reuse"))
-            throw new IOException("The AI input already contains an unsent draft. Send or clear that draft in Chrome first.");
-        if (prepared.GetString() == "ready")
+        var state = prepared.GetProperty("state").GetString();
+        diagnostics?.Invoke("input=" + state);
+        if (state == "missing")
+            throw new IOException("The AI message input is unavailable. Sign in to the selected provider and open a conversation in panel 05.");
+        // A draft the user typed is never discarded or sent on its own: the
+        // caption is appended below it, one blank line apart, and the two go up
+        // together, so what the page submits is no longer just the prompt.
+        var submitted = prepared.GetProperty("text").GetString()!;
+        if (prepared.GetProperty("insert").GetString() is { Length: > 0 } insertion)
         {
             diagnostics?.Invoke("stage=insert-text");
-            await page.CommandAsync("Input.insertText", new { text = prompt }, token);
+            await page.CommandAsync("Input.insertText", new { text = insertion }, token);
         }
         diagnostics?.Invoke("stage=click-send");
         await WaitForAsync(async () => (await page.EvaluateAsync(BrowserScripts.ClickSend, token)).GetBoolean(),
-            "The AI Send button did not become available. Check the Chrome tab for a sign-in or usage-limit message.", token);
+            "The AI Send button did not become available. Check panel 05 for a sign-in or usage-limit message.", token);
         diagnostics?.Invoke($"submitted baselineMessages={baseline.Messages.Length}");
 
         var lastText = "";
@@ -112,7 +121,7 @@ public sealed class ChromeAiClient
         while (true)
         {
             await Task.Delay(350, token);
-            var snapshot = await SnapshotAsync(page, provider, prompt, token);
+            var snapshot = await SnapshotAsync(page, provider, submitted, token);
             // Page virtualization can remove older messages, so counts cannot identify a new reply.
             var afterSubmittedUser = snapshot.AfterUser && snapshot.UserKey != baseline.UserKey;
             var changedMessage = oldMessages.TryGetValue(snapshot.Key, out var oldText)
@@ -166,11 +175,11 @@ public sealed class ChromeAiClient
     {
         diagnostics?.Invoke($"stage=find-{messenger.Name.ToLowerInvariant()}-input");
         await WaitForAsync(async () => (await page.EvaluateAsync(BrowserScripts.MessengerComposerReady(messenger), token)).GetBoolean(),
-            $"The {messenger.Name} message box is unavailable. Open the chat you want in Help Me!'s Chrome window and sign in first.", token);
+            $"The {messenger.Name} message box is unavailable. Open the chat you want in panel 06 and sign in first.", token);
         var prepared = await page.EvaluateAsync(BrowserScripts.PrepareMessengerInput(messenger, message), token);
         diagnostics?.Invoke("input=" + prepared.GetString());
         if (prepared.GetString() is not ("ready" or "reuse"))
-            throw new IOException($"The {messenger.Name} message box already contains an unsent draft. Send or clear that draft in Chrome first.");
+            throw new IOException($"The {messenger.Name} message box already contains an unsent draft. Send or clear that draft in panel 06 first.");
         if (prepared.GetString() == "ready")
         {
             diagnostics?.Invoke("stage=insert-text");
@@ -186,7 +195,7 @@ public sealed class ChromeAiClient
             diagnostics?.Invoke("stage=messenger-send-button");
             await page.EvaluateAsync(BrowserScripts.ClickMessengerSend(messenger), token);
             if (!await ComposerClearedAsync(page, messenger, token))
-                throw new IOException($"{messenger.Name} did not accept the message. Check the Chrome tab for the open chat or a sign-in prompt.");
+                throw new IOException($"{messenger.Name} did not accept the message. Check panel 06 for the open chat or a sign-in prompt.");
         }
         diagnostics?.Invoke($"completed chars={message.Length}");
         return $"Sent {message.Length} characters to the open {messenger.Name} chat.";
@@ -368,14 +377,25 @@ internal static class BrowserScripts
         })()
         """;
 
+    // The user may have typed in the AI input themselves. That draft is kept and
+    // the caption is added after it, separated by a blank line, so one message
+    // carries both. The caret is moved to the end first: the user may have left
+    // it mid-draft, and inserted text lands wherever the caret is.
     public static string PrepareInput(string prompt) => "(() => {" + Helpers + $$"""
         const e = composer();
-        if (!e) return 'missing';
+        if (!e) return {state: 'missing', text: '', insert: ''};
         const current = (e.value ?? e.innerText ?? '').trim();
         const prompt = {{JsonSerializer.Serialize(prompt.Trim())}};
-        if (current && current !== prompt) return 'draft';
-        if (current === prompt) { e.focus(); return 'reuse'; }
-        e.focus(); return 'ready';
+        e.focus();
+        if ('value' in e) { e.selectionStart = e.selectionEnd = e.value.length; }
+        else {
+            const range = document.createRange();
+            range.selectNodeContents(e); range.collapse(false);
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+        }
+        if (current === prompt) return {state: 'reuse', text: prompt, insert: ''};
+        if (!current) return {state: 'ready', text: prompt, insert: prompt};
+        return {state: 'append', text: current + '\n\n' + prompt, insert: '\n\n' + prompt};
         })()
         """;
     public static string ClickSend => "(() => {" + Helpers + """
