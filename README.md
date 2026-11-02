@@ -17,10 +17,13 @@ macOS has no equivalent of WASAPI loopback: nothing captures the system's own ou
 **BlackHole** (the default) is a free virtual audio device. Playback is routed through a Multi-Output Device containing both your speakers and BlackHole, so you still hear the sound and Help Me! reads the same stream as an ordinary input. It needs a one-time setup, works on every macOS version this app runs on, and asks for no permission beyond microphone access.
 
 ```bash
-scripts/setup.sh --blackhole
+scripts/setup.sh --blackhole                                  # from the source tree
+/Applications/HelpMe.app/Contents/Resources/install-blackhole.sh   # from the installed app
 ```
 
-Then, in **Audio MIDI Setup**: click **+** at the bottom left, choose **Create Multi-Output Device**, tick both your speakers and **BlackHole 2ch**, and make that device the system output in Sound settings.
+Both run the same script. It installs the device with Homebrew — macOS asks for your password, because adding an audio driver needs one — checks that macOS can actually see it afterwards, prints the routing steps and opens Audio MIDI Setup for you. There, click **+** at the bottom left, choose **Create Multi-Output Device**, tick both your speakers and **BlackHole 2ch**, and make that device the system output in Sound settings. Then choose BlackHole in Settings.
+
+Without Homebrew the script says so and points at the signed installer at [existential.audio/blackhole](https://existential.audio/blackhole/); nothing is installed behind your back.
 
 **ScreenCaptureKit** is Apple's own system-audio tap and installs nothing, but macOS counts it as screen recording: it asks for **Screen Recording** permission, and Sequoia asks again periodically. Captions stop when that lapses, which is why BlackHole is the default. It needs macOS 13 Ventura or newer; Settings says so rather than failing inside a native call if it is unavailable.
 
@@ -98,7 +101,13 @@ About 1.4 GB assembled. Run on macOS it also signs the bundle ad-hoc and writes 
 
 Drag `HelpMe.app` to `/Applications` and open it once from there, so macOS asks for microphone access with the app's own name attached. The bundle declares `LSUIElement`, so it has no Dock icon and no window at launch: it is a menu bar application.
 
-**The one thing that cannot be bundled is BlackHole.** A virtual audio device is a system installer of its own, with its own admin prompt, so a Mac that has only ever run this bundle will not have it. Help Me! notices and captures system audio with ScreenCaptureKit instead, and the status line reads `ScreenCaptureKit (BlackHole not installed)` so the substitution is never silent. Install BlackHole with `scripts/setup.sh --blackhole` to get the route that needs no permission.
+**The one thing that cannot be bundled is BlackHole.** A virtual audio device is a system installer of its own, with its own admin prompt, so a Mac that has only ever run this bundle will not have it. Help Me! notices and captures system audio with ScreenCaptureKit instead, and the status line reads `ScreenCaptureKit (BlackHole not installed)` so the substitution is never silent.
+
+The installer for it travels inside the bundle even though the device cannot, so the no-permission route is one command away without the source tree:
+
+```bash
+/Applications/HelpMe.app/Contents/Resources/install-blackhole.sh
+```
 
 Options: `--version X.Y.Z` sets the recorded version, `--models base` ships only the default Whisper model, `--no-python` leaves out the interpreter and the Korean model, `--no-dmg` skips the disk image. The Python runtime is downloaded once into `.tools/package` and cached there.
 

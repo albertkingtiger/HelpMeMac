@@ -75,21 +75,9 @@ if [ "$translation" -eq 1 ]; then
 fi
 
 if [ "$blackhole" -eq 1 ]; then
-    command -v brew >/dev/null 2>&1 || {
-        echo "Homebrew is not installed; see https://brew.sh, or install BlackHole from https://existential.audio/blackhole/." >&2
-        exit 1
-    }
-    brew install blackhole-2ch
-    cat <<'BLACKHOLE'
-
-BlackHole is installed. One more step, in Audio MIDI Setup:
-  1. Open Audio MIDI Setup (Applications > Utilities).
-  2. Click + at the bottom left and choose "Create Multi-Output Device".
-  3. Tick both your speakers/headphones and "BlackHole 2ch".
-  4. Make that Multi-Output Device the system output in Sound settings.
-
-You then hear the sound as usual and Help Me! captures the same stream.
-BLACKHOLE
+    # The same script the application bundle carries, so the instructions are
+    # written once and say the same thing either way it is reached.
+    scripts/install-blackhole.sh
 fi
 
 echo "Setup complete. Build and run: scripts/run.sh"

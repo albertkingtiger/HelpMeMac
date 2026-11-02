@@ -165,6 +165,10 @@ if [ "$on_mac" -eq 1 ] && [ "$skip_python" -eq 0 ]; then
 fi
 "$icon_python" scripts/make_icon.py --icns "$resources/helpme.icns"
 
+# BlackHole cannot be bundled, but its installer can be: this is how someone
+# who only ever unpacked the package gets the no-permission audio route.
+cp scripts/install-blackhole.sh "$resources/install-blackhole.sh"
+
 cat > "$contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
